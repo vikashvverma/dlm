@@ -32,7 +32,6 @@ def get_2d_cnn(p):
 
 	return model
 
-
 def get_model(nn_type, parameters=None):
 	if parameters == None:
 		parameters = {
@@ -43,7 +42,7 @@ def get_model(nn_type, parameters=None):
 			'pool_size':[(2,2)],
 			'dropout':[.2, .35],
 			'dense':[128],
-			'input_shape':(150,150, 1),
+			'input_shape':(150,150, 3),
 			'nb_classes':2 # Number of outputs possible, in our case, number of people in dataset
 		}
 
