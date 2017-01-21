@@ -1,3 +1,0 @@
-[submodule "utilities"]
-	path = utilities
-	url = git@bitbucket.org:deeplm/dlm-utilities.git
