@@ -29,7 +29,6 @@ if __name__ == '__main__':
 
 	logging.basicConfig(format='%(levelname)s:%(message)s', level=loglevel)
 	path = args.path
-	path = "D:/dev/deep-imdb/dlm/data/imdb-wiki/ex/imdb_crop/imdb.mat" # TODO: remove
 
 	dirs = []
 	newpath = None
@@ -37,13 +36,8 @@ if __name__ == '__main__':
 	while os.path.split(temp_path)[1] != '':
 		dirs.insert(0, os.path.split(temp_path)[1])
 		temp_path = os.path.split(temp_path)[0]
-	if dirs[dirs.index('data')-1] == 'dlm':
-		logging.info("data folder was found in dlm folder, assuming you want relative paths")
-		newpath = os.path.join(*dirs[dirs.index('data'):-1]).replace('\\','/')
-	else:
-		logging.info("Didn't understand path, using full path for db")
-		newpath = path
-
+	logging.info("Assuming you want relative paths")
+	newpath = os.path.join(*dirs[dirs.index('data'):-1]).replace('\\','/')
 
 	logging.info("Using file {}".format(path))
 	
