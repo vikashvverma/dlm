@@ -15,7 +15,7 @@ parser.add_argument("-v", "--verbosity", action="count", help="Increase output v
 parser.add_argument("-f", "--force", action="store_true", help="Force, overwrite any files with conflicts")
 parser.add_argument("-d", "--dry-run", action="store_true", help="Dry run, wont modify any files")
 parser.add_argument("-i", "--hostname", help="MongoDB Hostname")
-parser.add_argument("-p", "--port", help="MongoDB Password")
+parser.add_argument("-p", "--port", help="MongoDB Port")
 args = parser.parse_args()
 
 if __name__ == '__main__':

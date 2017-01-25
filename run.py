@@ -15,7 +15,7 @@ if __name__ == '__main__':
 	parser.add_argument("-v", "--verbosity", action="count", help="Increase output verbosity (Can be specified multiple times for more verbosity)", default=0)
 	parser.add_argument("-d", "--dry-run", action="store_true", help="Dry run, wont modify any files")
 	parser.add_argument("-i", "--hostname", help="MongoDB Hostname")
-	parser.add_argument("-p", "--port", help="MongoDB Password")
+	parser.add_argument("-p", "--port", help="MongoDB Port")
 	args = parser.parse_args()
 	loglevel = logging.ERROR
 	if args.verbosity == 1:
@@ -42,7 +42,7 @@ if __name__ == '__main__':
 		logging.info("Port specified, using {}".format(port))
 
 	
-	x,y = get_imdb_data(collection="56f492c9fba69dbd2439b7975e9e279e_cropped", people_limit=10)
+	x,y = get_imdb_data(collection="56f492c9fba69dbd2439b7975e9e279e_cropped", people_limit=10, port=port, hostname=hostname)
 	logging.info("Data loaded")
 
 	logging.info("Shuffling all the data")
