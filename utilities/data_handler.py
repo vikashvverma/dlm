@@ -63,8 +63,10 @@ def get_imdb_data(collection, hostname='localhost', port=27017, people_limit=-1)
 			selected_people.append((k,v))
 
 		logging.info("Loading {} pictures into memory".format(sum([v for k,v in selected_people])))
-		for k,_ in selected_people:
+		for people_index,(k,_) in enumerate(selected_people):
 			cur = collection.find({'name':k})
+
+			logging.debug("Loading pictures of {} ({}/{})".format(k, people_index+1, len(selected_people)))
 			for r in cur:
 				x_data.append(cv2.imread(r['full_path']))
 				y_data.append(r['name'])
@@ -78,7 +80,13 @@ def get_imdb_data(collection, hostname='localhost', port=27017, people_limit=-1)
 			y_data.append(r['name'])
 
 	return np.array(x_data, dtype=np.uint8), np.array(y_data, dtype=np.str)
-		
+
+def split_data(*data, ratio=0.8):
+	l = []
+	for dset in data:
+		m = int(len(dset)*ratio)
+		l.append((dset[:m], dset[m:]))
+	return l
 
 if __name__ == '__main__':
 	S = time.time()
