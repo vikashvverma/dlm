@@ -66,7 +66,7 @@ if __name__ == '__main__':
 		cv2.destroyAllWindows()
 
 	parameters = {
-			'nb_filters':[16, 64],
+			'nb_filters':[32, 32],
 			'kernel_size':[(3,3), (3,3)],
 			'border_mode':['valid', 'valid'],
 			'activation':['relu', 'relu', 'relu', 'softmax'],
@@ -80,9 +80,8 @@ if __name__ == '__main__':
 	logging.info("Categorizes output data")
 	uniques, ids = np.unique(y, return_inverse=True)
 	cat_y = np_utils.to_categorical(ids, len(uniques))
-
+	import pdb;pdb.set_trace()
 	(x_train, x_test), (y_train, y_test) = split_data(x, cat_y)
-
 
 
 

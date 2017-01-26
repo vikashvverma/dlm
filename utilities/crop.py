@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser(description="Use mongodb collection to look up 
 parser.add_argument("collection", help="MongoDb collection", type=str)
 parser.add_argument("-v", "--verbosity", action="count", help="Increase output verbosity (Can be specified multiple times for more verbosity)", default=0)
 parser.add_argument("-c", "--new-collection", help="Name of new collection, default is 'collection-cropped'")
-#parser.add_argument("-f", "--force", action="store_true", help="Force, overwrite any files with conflicts")
+parser.add_argument("-f", "--force", action="store_true", help="Force, overwrite any files with conflicts")
 parser.add_argument("-d", "--dry-run", action="store_true", help="Dry run, wont modify any files")
 parser.add_argument("-i", "--hostname", help="MongoDB Hostname")
 parser.add_argument("-p", "--port", help="MongoDB Password")
@@ -103,9 +103,21 @@ if __name__ == '__main__':
 			# Insert the record to mongodb
 			oid = new_collection.insert_one(face_record)
 			logging.debug("Inserted record with id {}".format(oid.inserted_id))
+	
+	cropped_path = "data/cropped/{}".format(args.collection)
 
-
+	if not os.path.isdir(cropped_path) and not args.force:
+		os.makedirs(cropped_path)
+	elif os.path.isdir(cropped_path) and args.force:
+		logging.warn("--force specified, deleting image folder")
+		shutil.rmtree(cropped_path)
+		os.makedirs(cropped_path)
+	else:
+		logging.error("Folder already exists, specify --force if you want overwrite")
+		sys.exit(1)
+	
 	cursor = collection.find(no_cursor_timeout=True)
+	
 	for r in cursor:
 		if new_collection.find({'old_id':r['_id']}).limit(1).count() != 0:
 			logging.debug("{} found in DB, skipping...".format(r['full_path']))
