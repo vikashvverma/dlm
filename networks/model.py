@@ -11,11 +11,12 @@ def get_2d_cnn(p):
 	model.add(Convolution2D(p['nb_filters'][0], 
 		p['kernel_size'][0][0], p['kernel_size'][0][1],
 		border_mode=p['border_mode'][0],
-		input_shape=p['input_shape']
+		input_shape=p['input_shape'],
+		subsample=p['stride'][0]
 		))
 
 	model.add(Activation(p['activation'][0]))
-	model.add(Convolution2D(p['nb_filters'][1], p['kernel_size'][1][0], p['kernel_size'][1][1]))
+	model.add(Convolution2D(p['nb_filters'][1], p['kernel_size'][1][0], p['kernel_size'][1][1], subsample=p['stride'][1]))
 	model.add(Activation(p['activation'][1]))
 	model.add(MaxPooling2D(pool_size=p['pool_size'][0]))
 	model.add(Dropout(p['dropout'][0]))
