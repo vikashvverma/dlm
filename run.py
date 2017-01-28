@@ -89,27 +89,49 @@ if __name__ == '__main__':
 	"""
 	MODEL HERE
 	"""
-	"""
-	model = Sequential()
-	model.add(Convolution2D(nb_filter=64, nb_row=3, nb_col=3, border_mode='same',input_shape=input_shape,subsample=(1,1)))
-	model.add(Activation('relu'))
 
+	model = Sequential()
+	model.add(Convolution2D(nb_filter=32, nb_row=3, nb_col=3, border_mode='same',input_shape=input_shape,subsample=(1,1)))
+	model.add(Activation('relu'))
+	model.add(Convolution2D(nb_filter=32, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
+	model.add(Activation('relu'))
 	model.add(Convolution2D(nb_filter=32, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
 	model.add(Activation('relu'))
 
 	model.add(MaxPooling2D(pool_size=(2,2)))
-	model.add(Dropout(0.01))
+
+	model.add(Convolution2D(nb_filter=64, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
+	model.add(Activation('relu'))
+	model.add(Convolution2D(nb_filter=64, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
+	model.add(Activation('relu'))
+	model.add(Convolution2D(nb_filter=64, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
+	model.add(Activation('relu'))
+
+	model.add(MaxPooling2D(pool_size=(2,2)))
+
+	model.add(Convolution2D(nb_filter=128, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
+	model.add(Activation('relu'))
+	model.add(Convolution2D(nb_filter=128, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
+	model.add(Activation('relu'))
+	model.add(Convolution2D(nb_filter=128, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
+	model.add(Activation('relu'))
+	
+	model.add(MaxPooling2D(pool_size=(2,2)))
+
+	model.add(Dropout(0.2))
 
 	model.add(Flatten())
+	model.add(Dense(256))
+	model.add(Activation('relu'))
+	model.add(Dropout(0.2))
 
 	model.add(Dense(128))
 	model.add(Activation('relu'))
 
-	model.add(Dropout(0.01))
 	model.add(Dense(nb_classes))
 	model.add(Activation('softmax'))
+	
 	"""
-
 	model = Sequential()
 	model.add(Dense(512,input_shape=input_shape))
 	model.add(Activation('relu'))
@@ -119,6 +141,7 @@ if __name__ == '__main__':
 	model.add(Dropout(0.2))
 	model.add(Dense(nb_classes))
 	model.add(Activation('softmax'))
+	"""
 
 	model.compile(loss='categorical_crossentropy', optimizer='adadelta', metrics=['accuracy'])
 
