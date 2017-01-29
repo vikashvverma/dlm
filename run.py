@@ -11,6 +11,9 @@ import numpy as np
 import cv2
 import pickle
 import os
+import time
+import json
+import sys
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description="Run neural networks")
@@ -115,38 +118,52 @@ if __name__ == '__main__':
 	model.add(Activation('relu'))
 	model.add(Convolution2D(nb_filter=128, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
 	model.add(Activation('relu'))
+	model.add(Dropout(0.1))
 	
 	model.add(MaxPooling2D(pool_size=(2,2)))
-
-	model.add(Dropout(0.2))
 
 	model.add(Flatten())
 	model.add(Dense(256))
 	model.add(Activation('relu'))
-	model.add(Dropout(0.2))
+	model.add(Dropout(0.1))
 
 	model.add(Dense(128))
 	model.add(Activation('relu'))
+	model.add(Dropout(0.15))
 
 	model.add(Dense(nb_classes))
 	model.add(Activation('softmax'))
 	
-	"""
-	model = Sequential()
-	model.add(Dense(512,input_shape=input_shape))
-	model.add(Activation('relu'))
-	model.add(Dropout(0.2))
-	model.add(Dense(512))
-	model.add(Activation('relu'))
-	model.add(Dropout(0.2))
-	model.add(Dense(nb_classes))
-	model.add(Activation('softmax'))
-	"""
-
 	model.compile(loss='categorical_crossentropy', optimizer='adadelta', metrics=['accuracy'])
 
-	model.fit(x_train, y_train, batch_size=10, nb_epoch=10,verbose=1, validation_data=(x_test, y_test))
+	model.fit(x_train, y_train, batch_size=10, nb_epoch=100,verbose=1, validation_data=(x_test, y_test))
 	score = model.evaluate(x_test, y_test, verbose=0)
 
 	print('Test score:', score[0])
 	print('Test accuracy:', score[1])
+
+	if not args.dry_run:
+		date_str = time.strftime("%d-%m-%Y_%H-%M-%S")
+		name_str = "{}-acc:{:.2f}-loss:{:.4f}".format(date_str, score[1], score[0])
+		model_folder = "data/models/{}".format(name_str)
+		logging.info("Creating model folder {}".format(model_folder))
+		os.makedirs(model_folder, exist_ok=True)
+		logging.info("Saving model as json")
+		jsonstr = model.to_json()
+		
+		with open('{}/model.json'.format(model_folder), 'w') as outfile:
+			json.dump(jsonstr, outfile)
+		
+		logging.info("Saving weights as hdf5")
+		model.save_weights("{}/weights.hdf5".format(model_folder))
+
+		logging.info("Saving summary as txt")
+		with open('{}/summary.txt'.format(model_folder),'w') as sumfile:
+			sys.stdout = sumfile
+			model.summary()
+			sys.stdout = sys.__stdout__
+
+
+
+
+
