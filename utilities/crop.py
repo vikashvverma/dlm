@@ -19,20 +19,30 @@ parser.add_argument("-i", "--hostname", help="MongoDB Hostname")
 parser.add_argument("-p", "--port", help="MongoDB Password")
 args = parser.parse_args()
 
+loglevel = logging.ERROR
+if args.verbosity == 1:
+	loglevel = logging.WARNING
+elif args.verbosity == 2:
+	loglevel = logging.INFO
+elif args.verbosity == 3:
+	loglevel = logging.DEBUG
+
+logging.basicConfig(format='%(levelname)s:%(message)s', level=loglevel)
+
 def get_db():
 	if not args.hostname:
 		hostname = 'localhost'
-		logging.info("No hostname specified, using default of {}".format(hostname))
+		logging.debug("No hostname specified, using default of {}".format(hostname))
 	else:
 		hostname = args.hostname
-		logging.info("Hostname specified, using {}".format(hostname))
+		logging.debug("Hostname specified, using {}".format(hostname))
 
 	if not args.port:
 		port = 27017	
-		logging.info("No port specified, using default of {}".format(port))
+		logging.debug("No port specified, using default of {}".format(port))
 	else:
 		port = int(args.port)
-		logging.info("Port specified, using {}".format(port))
+		logging.debug("Port specified, using {}".format(port))
 
 	mc = MongoClient(hostname, port)
 	db = mc['dlm']
@@ -53,7 +63,6 @@ def get_collections():
 
 
 def face_crop(record):
-	collection, new_collection = get_collections()
 	pre_path = "data/cropped/{}".format(args.collection)
 
 	image = cv2.imread(record['full_path'])
@@ -68,12 +77,12 @@ def face_crop(record):
 	)
 
 	if len(faces) != 1: # Only images with 1 face valid in training
-		return []
+		return None
 
 	fp = record['full_path']
 	subdir = os.path.split(os.path.dirname(fp))[-1]
 	fn,ext = os.path.splitext(os.path.basename(fp))
-
+	face_records = []
 	for i,(x,y,w,h) in enumerate(faces):
 		image_path = pre_path+'/{sub}_{fn}_{index}{ext}'.format(sub=subdir, fn=fn, index=i, ext=ext)
 
@@ -91,22 +100,12 @@ def face_crop(record):
 		face_record['full_path'] = image_path
 		face_record['old_id'] = face_record.pop('_id',-1)
 
-		# Insert the record to mongodb
-		oid = new_collection.insert_one(face_record)
-		logging.debug("Inserted record with id {}".format(oid.inserted_id))
+		face_records.append(face_record)
+
+	return face_records
 
 
 if __name__ == '__main__':
-	loglevel = logging.ERROR
-	if args.verbosity == 1:
-		loglevel = logging.WARNING
-	elif args.verbosity == 2:
-		loglevel = logging.INFO
-	elif args.verbosity == 3:
-		loglevel = logging.DEBUG
-
-	logging.basicConfig(format='%(levelname)s:%(message)s', level=loglevel)
-
 	pre_path = "data/cropped/{}".format(args.collection)
 
 	collection, new_collection = get_collections()
@@ -133,7 +132,6 @@ if __name__ == '__main__':
 			showc(img, c, name)
 
 
-	
 	cropped_path = "data/cropped/{}".format(args.collection)
 
 	if not os.path.isdir(cropped_path) and not args.force:
@@ -149,20 +147,17 @@ if __name__ == '__main__':
 		logging.error("Folder already exists, specify --force if you want overwrite")
 		sys.exit(1)
 	
-	cursor = collection.find(no_cursor_timeout=True)
+	cursor = collection.find()
 
 	loaded_cursor = [r for r in cursor]
 
 	pool = multiprocessing.Pool()
-	pool.map(face_crop, loaded_cursor)
+	raw_records = pool.map(face_crop, loaded_cursor)
+	records = [r for r in raw_records if r] # Remove empty lists / images without faces
 
-
-	"""
-	for r in cursor:
-		if new_collection.find({'old_id':r['_id']}).limit(1).count() != 0:
-			logging.debug("{} found in DB, skipping...".format(r['full_path']))
-			continue
-		face_crop(r)
-	"""
+	logging.debug("Begining mongoDb inserts")
+	for i,r in enumerate(records):
+		new_collection.insert_many(r)
+		
 	
 	cursor.close()
