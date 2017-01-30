@@ -14,7 +14,6 @@ parser.add_argument("collection", help="MongoDb collection", type=str)
 parser.add_argument("-v", "--verbosity", action="count", help="Increase output verbosity (Can be specified multiple times for more verbosity)", default=0)
 parser.add_argument("-c", "--new-collection", help="Name of new collection, default is 'collection-cropped'")
 parser.add_argument("-f", "--force", action="store_true", help="Force, overwrite any files with conflicts")
-parser.add_argument("-d", "--dry-run", action="store_true", help="Dry run, wont modify any files")
 parser.add_argument("-i", "--hostname", help="MongoDB Hostname")
 parser.add_argument("-p", "--port", help="MongoDB Password")
 args = parser.parse_args()
@@ -62,27 +61,39 @@ if __name__ == '__main__':
 		logging.error("Collection was empty")
 		sys.exit(1)
 
+	def show(img,name="image"):
+		cv2.imshow(name, img)
+		cv2.waitKey(0)
+		cv2.destroyAllWindows()
+	def showc(img, croploc, name="image"):
+		x,y,w,h = croploc
+		crop = img[y:y+h, x:x+w]
+		show(crop, name)
+
+	def sa(img, croplocs, name="image"):
+		for c in croplocs:
+			showc(img, c, name)
+
 	def face_crop(record):
 		
 		image = cv2.imread(record['full_path'])
 		face_cascade = cv2.CascadeClassifier('utilities/resources/haarcascade/haarcascade_frontalface_alt2.xml')
 		gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
 		faces = face_cascade.detectMultiScale(
 			gray,
 			scaleFactor=1.1,
 			minNeighbors=5,
 			minSize=(40, 40),
-			flags=0 
+			flags=0
 		)
 
-		if len(faces) == 0: # No faces detected
+		if len(faces) != 1: # Only images with 1 face valid in training
 			return []
 
 		fp = record['full_path']
 		subdir = os.path.split(os.path.dirname(fp))[-1]
 		fn,ext = os.path.splitext(os.path.basename(fp))
-
+		
 		for i,(x,y,w,h) in enumerate(faces):
 			image_path = pre_path+'/{sub}_{fn}_{index}{ext}'.format(sub=subdir, fn=fn, index=i, ext=ext)
 
@@ -90,7 +101,7 @@ if __name__ == '__main__':
 
 			# Cropping image to size
 			cropped = image[y:y+h, x:x+w]
-			cropped = cv2.resize(cropped, (150,150))
+			cropped = cv2.resize(cropped, (64,64))
 			# Saving cropped image
 			logging.debug("Saving {}".format(image_path))
 			cv2.imwrite(image_path, cropped)
@@ -112,12 +123,14 @@ if __name__ == '__main__':
 		logging.warn("--force specified, deleting image folder")
 		shutil.rmtree(cropped_path)
 		os.makedirs(cropped_path)
+	elif not os.path.isdir(cropped_path) and args.force:
+		logging.info("--force specified, but no folder found. Continuing as usual")
+		os.makedirs(cropped_path)
 	else:
 		logging.error("Folder already exists, specify --force if you want overwrite")
 		sys.exit(1)
 	
 	cursor = collection.find(no_cursor_timeout=True)
-	
 	for r in cursor:
 		if new_collection.find({'old_id':r['_id']}).limit(1).count() != 0:
 			logging.debug("{} found in DB, skipping...".format(r['full_path']))
