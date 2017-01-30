@@ -160,6 +160,8 @@ if __name__ == '__main__':
 		logging.info("Saving summary as txt")
 		with open('{}/summary.txt'.format(model_folder),'w') as sumfile:
 			sys.stdout = sumfile
+			print("x_train.shape: {}".format(x_train.shape))
+			print("y_train.shape: {}".format(y_train.shape))
 			model.summary()
 			sys.stdout = sys.__stdout__
 
