@@ -21,7 +21,7 @@ if __name__ == '__main__':
 	parser.add_argument("-d", "--dry-run", action="store_true", help="Dry run, wont modify any files")
 	parser.add_argument("-i", "--hostname", help="MongoDB Hostname")
 	parser.add_argument("-p", "--port", help="MongoDB Port")
-	parser.add_argument("-r", "--reload-data", help="Reload data even if pickle file exists")
+	parser.add_argument("-r", "--reload-data", action="store_true", help="Reload data even if pickle file exists")
 	args = parser.parse_args()
 	loglevel = logging.ERROR
 	if args.verbosity == 1:
