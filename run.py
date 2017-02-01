@@ -148,14 +148,19 @@ if __name__ == '__main__':
 		model_folder = "data/models/{}".format(name_str)
 		logging.info("Creating model folder {}".format(model_folder))
 		os.makedirs(model_folder, exist_ok=True)
+		"""
 		logging.info("Saving model as json")
 		jsonstr = model.to_json()
 		
 		with open('{}/model.json'.format(model_folder), 'w') as outfile:
 			json.dump(jsonstr, outfile)
-		
+
 		logging.info("Saving weights as hdf5")
 		model.save_weights("{}/weights.hdf5".format(model_folder))
+		"""
+
+		logging.info("Saving model as {}/model.h5".format(model_folder))
+		model.save("{}/model.h5".format(model_folder))
 
 		logging.info("Saving summary as txt")
 		with open('{}/summary.txt'.format(model_folder),'w') as sumfile:
