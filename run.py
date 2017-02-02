@@ -19,6 +19,7 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description="Run neural networks")
 	parser.add_argument("-v", "--verbosity", action="count", help="Increase output verbosity (Can be specified multiple times for more verbosity)", default=0)
 	parser.add_argument("-d", "--dry-run", action="store_true", help="Dry run, wont modify any files")
+	parser.add_argument("-s", "--save-data", action="store_true", help="Save data as pickle to model folder")
 	parser.add_argument("-i", "--hostname", help="MongoDB Hostname")
 	parser.add_argument("-p", "--port", help="MongoDB Port")
 	parser.add_argument("-r", "--reload-data", action="store_true", help="Reload data even if pickle file exists")
@@ -122,6 +123,11 @@ if __name__ == '__main__':
 	
 	model.add(MaxPooling2D(pool_size=(2,2)))
 
+	model.add(Convolution2D(nb_filter=512, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
+	model.add(Activation('relu'))
+	model.add(Convolution2D(nb_filter=512, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
+	model.add(Activation('relu'))
+
 	model.add(Flatten())
 	model.add(Dense(256))
 	model.add(Activation('relu'))
@@ -136,7 +142,7 @@ if __name__ == '__main__':
 	
 	model.compile(loss='categorical_crossentropy', optimizer='adadelta', metrics=['accuracy'])
 
-	model.fit(x_train, y_train, batch_size=10, nb_epoch=100,verbose=1, validation_data=(x_test, y_test))
+	model.fit(x_train, y_train, batch_size=10, nb_epoch=10,verbose=1, validation_data=(x_test, y_test))
 	score = model.evaluate(x_test, y_test, verbose=0)
 
 	print('Test score:', score[0])
@@ -169,6 +175,11 @@ if __name__ == '__main__':
 			print("y_train.shape: {}".format(y_train.shape))
 			model.summary()
 			sys.stdout = sys.__stdout__
+		if args.save_data:
+			logging.info("Saving data to pickle file because --save-data given")
+			pkl_data = {'x_train':x_train, 'x_test':x_test, 'y_train':y_train, 'y_test':y_test, 'uniques':uniques, 'ids':ids}
+			with open('{}/data.pkl'.format(model_folder), 'wb') as pkl:
+				pickle.dump(pkl_data, pkl)
 
 
 
