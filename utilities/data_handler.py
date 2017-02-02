@@ -86,12 +86,11 @@ def get_lfw_data(path='data/lfw/lfw/', people_limit=-1):
 	x_data,y_data = [],[]
 	for i,(subdir, dirs, files) in enumerate(os.walk(path)):
 		person_name = ' '.join(os.path.basename(subdir).split('_'))
-		if i >= people_limit:
+		if i >= people_limit and people_limit != -1:
 			break
 		for f in files:
 			x_data.append(cv2.imread('{}/{}'.format(subdir, f)))
 			y_data.append(person_name)
-			print(subdir,f)
 	return np.array(x_data, dtype=np.uint8), np.array(y_data, dtype=np.str)
 
 def split_data(*data, ratio=0.8):
@@ -104,6 +103,6 @@ def split_data(*data, ratio=0.8):
 if __name__ == '__main__':
 	S = time.time()
 	#x,y = get_imdb(collection="56f492c9fba69dbd2439b7975e9e279e_cropped", people_limit=100)
-	x,y = get_lfw_data(people_limit=10)
+	x,y = get_lfw_data()
 	import pdb;pdb.set_trace()
 	print("Loaded to memory after {:.2f} seconds".format(time.time()-S))
