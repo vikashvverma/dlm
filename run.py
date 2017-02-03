@@ -1,4 +1,5 @@
 from keras.layers import Convolution2D, MaxPooling2D
+from keras.preprocessing.image import ImageDataGenerator
 from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.models import Sequential
 from keras.utils import np_utils
@@ -89,7 +90,6 @@ if __name__ == '__main__':
 	uniques, ids = np.unique(y, return_inverse=True)
 	cat_y = np_utils.to_categorical(ids, len(uniques))
 	(x_train, x_test), (y_train, y_test) = split_data(x, cat_y)
-
 	
 	logging.info("Building model")
 	"""
@@ -141,7 +141,19 @@ if __name__ == '__main__':
 	
 	model.compile(loss='categorical_crossentropy', optimizer='adadelta', metrics=['accuracy'])
 
-	model.fit(x_train, y_train, batch_size=50, nb_epoch=100,verbose=1, validation_data=(x_test, y_test))
+
+	datagen = ImageDataGenerator(
+		featurewise_center=False,
+		featurewise_std_normalization=False,
+		rotation_range=20,
+		width_shift_range=0.2,
+		height_shift_range=0.2,
+		horizontal_flip=True
+	)
+	datagen.fit(x_train)
+
+	model.fit_generator(datagen.flow(x_train, y_train, batch_size=50), samples_per_epoch=len(x_train), nb_epoch=1000)
+	#model.fit(x_train, y_train, batch_size=50, nb_epoch=100,verbose=1, validation_data=(x_test, y_test))
 	score = model.evaluate(x_test, y_test, verbose=0)
 
 	print('Test score:', score[0])

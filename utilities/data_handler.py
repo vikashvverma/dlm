@@ -96,7 +96,7 @@ def get_lfw_data(path='data/lfw/lfw/', people_limit=-1, resize=(-1,-1), min_exam
 				img = cv2.resize(img, resize)
 			x_data.append(img)
 			y_data.append(person_name)
-	return np.array(x_data, dtype=np.uint8), np.array(y_data, dtype=np.str)
+	return np.array(x_data, dtype=np.float64), np.array(y_data, dtype=np.str)
 
 def split_data(*data, ratio=0.8):
 	l = []
