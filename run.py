@@ -2,8 +2,7 @@ from keras.layers import Convolution2D, MaxPooling2D
 from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.models import Sequential
 from keras.utils import np_utils
-from networks.model import get_model
-from utilities.data_handler import get_imdb_data, split_data
+from utilities.data_handler import get_imdb_data, split_data, get_lfw_data
 from collections import OrderedDict
 import argparse
 import logging
@@ -14,6 +13,8 @@ import os
 import time
 import json
 import sys
+
+np.random.seed(1337)
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description="Run neural networks")
@@ -56,7 +57,8 @@ if __name__ == '__main__':
 		if args.reload_data:
 			logging.info("--reload-data (-r) was specified")
 		logging.info("Executing data_handler")
-		x,y = get_imdb_data(collection="56f492c9fba69dbd2439b7975e9e279e_cropped", people_limit=10, port=port, hostname=hostname)
+		x,y = get_lfw_data(path='data/cropped/lfw',resize=(64,64), min_examples=5)
+		#x,y = get_imdb_data(collection="56f492c9fba69dbd2439b7975e9e279e_cropped", people_limit=10, port=port, hostname=hostname)
 		logging.info("Saving data as pkl")
 		with open(pickle_loc, 'wb') as pkl:
 			pickle.dump((x,y), pkl)
@@ -102,6 +104,7 @@ if __name__ == '__main__':
 	model.add(Convolution2D(nb_filter=32, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
 	model.add(Activation('relu'))
 
+	model.add(Dropout(0.1))
 	model.add(MaxPooling2D(pool_size=(2,2)))
 
 	model.add(Convolution2D(nb_filter=64, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
@@ -113,20 +116,16 @@ if __name__ == '__main__':
 
 	model.add(MaxPooling2D(pool_size=(2,2)))
 
-	model.add(Convolution2D(nb_filter=128, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
-	model.add(Activation('relu'))
-	model.add(Convolution2D(nb_filter=128, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
-	model.add(Activation('relu'))
-	model.add(Convolution2D(nb_filter=128, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
-	model.add(Activation('relu'))
+	#model.add(Convolution2D(nb_filter=128, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
+	#model.add(Activation('relu'))
+	#model.add(Convolution2D(nb_filter=128, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
+	#model.add(Activation('relu'))
+	#model.add(Convolution2D(nb_filter=128, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
+	#model.add(Activation('relu'))
+
 	model.add(Dropout(0.1))
 	
-	model.add(MaxPooling2D(pool_size=(2,2)))
-
-	model.add(Convolution2D(nb_filter=512, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
-	model.add(Activation('relu'))
-	model.add(Convolution2D(nb_filter=512, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
-	model.add(Activation('relu'))
+	#model.add(MaxPooling2D(pool_size=(2,2)))
 
 	model.add(Flatten())
 	model.add(Dense(256))
@@ -142,7 +141,7 @@ if __name__ == '__main__':
 	
 	model.compile(loss='categorical_crossentropy', optimizer='adadelta', metrics=['accuracy'])
 
-	model.fit(x_train, y_train, batch_size=10, nb_epoch=10,verbose=1, validation_data=(x_test, y_test))
+	model.fit(x_train, y_train, batch_size=50, nb_epoch=100,verbose=1, validation_data=(x_test, y_test))
 	score = model.evaluate(x_test, y_test, verbose=0)
 
 	print('Test score:', score[0])

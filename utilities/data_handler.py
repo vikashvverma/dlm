@@ -82,13 +82,15 @@ def get_imdb_data(collection, hostname='localhost', port=27017, people_limit=-1)
 	return np.array(x_data, dtype=np.uint8), np.array(y_data, dtype=np.str)
 
 
-def get_lfw_data(path='data/lfw/lfw/', people_limit=-1, resize=(-1,-1)):
+def get_lfw_data(path='data/lfw/lfw/', people_limit=-1, resize=(-1,-1), min_examples=0):
 	x_data,y_data = [],[]
 	for i,(subdir, dirs, files) in enumerate(os.walk(path)):
 		person_name = ' '.join(os.path.basename(subdir).split('_'))
 		if i >= people_limit and people_limit != -1:
 			break
 		for f in files:
+			if len(files) < min_examples: # Skip classes that contains less images than min_examples
+				break
 			img = cv2.imread('{}/{}'.format(subdir, f))
 			if resize != (-1,-1):
 				img = cv2.resize(img, resize)
