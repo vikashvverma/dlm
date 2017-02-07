@@ -58,8 +58,8 @@ if __name__ == '__main__':
 		if args.reload_data:
 			logging.info("--reload-data (-r) was specified")
 		logging.info("Executing data_handler")
-		x,y = get_lfw_data(path='data/cropped/lfw',resize=(64,64), min_examples=5)
-		#x,y = get_imdb_data(collection="56f492c9fba69dbd2439b7975e9e279e_cropped", people_limit=10, port=port, hostname=hostname)
+		#x,y = get_lfw_data(path='data/cropped/lfw',resize=(64,64), min_examples=5)
+		x,y = get_imdb_data(collection="56f492c9fba69dbd2439b7975e9e279e_cropped", people_limit=10, port=port, hostname=hostname)
 		logging.info("Saving data as pkl")
 		with open(pickle_loc, 'wb') as pkl:
 			pickle.dump((x,y), pkl)
@@ -146,14 +146,15 @@ if __name__ == '__main__':
 		featurewise_center=False,
 		featurewise_std_normalization=False,
 		rotation_range=20,
-		width_shift_range=0.2,
-		height_shift_range=0.2,
-		horizontal_flip=True
+		width_shift_range=0.1,
+		height_shift_range=0.1,
+		horizontal_flip=True,
+		channel_shift_range=0.1
 	)
 	datagen.fit(x_train)
 
-	model.fit_generator(datagen.flow(x_train, y_train, batch_size=50), samples_per_epoch=len(x_train), nb_epoch=1000)
-	#model.fit(x_train, y_train, batch_size=50, nb_epoch=100,verbose=1, validation_data=(x_test, y_test))
+	model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=len(x_train), nb_epoch=10000)
+	#model.fit(x_train, y_train, batch_size=50, nb_epoch=1000,verbose=1, validation_data=(x_test, y_test))
 	score = model.evaluate(x_test, y_test, verbose=0)
 
 	print('Test score:', score[0])
@@ -165,16 +166,6 @@ if __name__ == '__main__':
 		model_folder = "data/models/{}".format(name_str)
 		logging.info("Creating model folder {}".format(model_folder))
 		os.makedirs(model_folder, exist_ok=True)
-		"""
-		logging.info("Saving model as json")
-		jsonstr = model.to_json()
-		
-		with open('{}/model.json'.format(model_folder), 'w') as outfile:
-			json.dump(jsonstr, outfile)
-
-		logging.info("Saving weights as hdf5")
-		model.save_weights("{}/weights.hdf5".format(model_folder))
-		"""
 
 		logging.info("Saving model as {}/model.h5".format(model_folder))
 		model.save("{}/model.h5".format(model_folder))
