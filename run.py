@@ -3,7 +3,7 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.models import Sequential
 from keras.utils import np_utils
-from utilities.data_handler import get_imdb_data, split_data, get_lfw_data
+from utilities.data_handler import get_imdb_data, split_data, get_data
 from collections import OrderedDict
 import argparse
 import logging
@@ -58,7 +58,7 @@ if __name__ == '__main__':
 		if args.reload_data:
 			logging.info("--reload-data (-r) was specified")
 		logging.info("Executing data_handler")
-		#x,y = get_lfw_data(path='data/cropped/lfw',resize=(64,64), min_examples=5)
+		#x,y = get_data(path='data/cropped/lfw',resize=(64,64), min_examples=5)
 		x,y = get_imdb_data(collection="56f492c9fba69dbd2439b7975e9e279e_cropped", people_limit=10, port=port, hostname=hostname)
 		logging.info("Saving data as pkl")
 		with open(pickle_loc, 'wb') as pkl:
