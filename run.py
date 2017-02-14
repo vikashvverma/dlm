@@ -153,7 +153,7 @@ if __name__ == '__main__':
 	)
 	datagen.fit(x_train)
 
-	model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=len(x_train), nb_epoch=10000)
+	model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=50000, nb_epoch=300)
 	#model.fit(x_train, y_train, batch_size=50, nb_epoch=1000,verbose=1, validation_data=(x_test, y_test))
 	score = model.evaluate(x_test, y_test, verbose=0)
 
