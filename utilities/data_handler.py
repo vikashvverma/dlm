@@ -98,6 +98,15 @@ def get_data(path='data/lfw/lfw/', people_limit=-1, resize=(-1,-1), min_examples
 			y_data.append(person_name)
 	return np.array(x_data, dtype=np.float64), np.array(y_data, dtype=np.str)
 
+def get_classless_images(path='data/imdb-wiki/handpicked_restructured/Jennifer_Aniston/', resize=(-1,-1)):
+	images = []
+	for f in os.listdir(path):
+		img = cv2.imread('{}/{}'.format(path, f))
+		if resize != (-1,-1):
+			img = cv2.resize(img, resize)
+		images.append(img)
+	return images
+
 def split_data(*data, ratio=0.8):
 	l = []
 	for dset in data:
