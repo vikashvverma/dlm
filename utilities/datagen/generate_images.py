@@ -19,7 +19,7 @@ from keras.layers.advanced_activations import LeakyReLU
 from keras.activations import *
 from keras.layers.wrappers import TimeDistributed
 from keras.layers.noise import GaussianNoise
-from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D, UpSampling2D
+from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D, UpSampling2D, Deconvolution2D
 from keras.layers.recurrent import LSTM
 from keras.regularizers import *
 from keras.layers.normalization import *
@@ -67,21 +67,19 @@ dropout_rate = 0.25
 opt = Adam(lr=1e-4)
 dopt = Adam(lr=1e-3)
 
+
 # Build the generator model
 g_input = Input(shape=[100])
-H = Dense(200*32*32)(g_input)
-H = BatchNormalization(mode=2)(H)
+H = Dense(int(3*64*64))(g_input)
 H = Activation('relu')(H)
-H = Reshape( [200, 32, 32] )(H)
-H = UpSampling2D(size=(2, 2))(H)
-H = Convolution2D(2, 3, 3, border_mode='same')(H)
-H = BatchNormalization(mode=2)(H)
+H = Reshape( [64, 64, 3] )(H)
+H = Convolution2D(int(128), 3, 3, border_mode='same')(H)
 H = Activation('relu')(H)
-H = Convolution2D(4, 3, 3, border_mode='same')(H)
-H = BatchNormalization(mode=2)(H)
+H = Convolution2D(int(64), 3, 3, border_mode='same')(H)
 H = Activation('relu')(H)
-H = Convolution2D(1, 1, 1, border_mode='same')(H)
+H = Deconvolution2D(3, 3, 3, border_mode='same', output_shape=(None, 64,64, 3))(H)
 g_V = Activation('sigmoid')(H)
+
 generator = Model(g_input, g_V)
 generator.compile(loss='binary_crossentropy', optimizer=opt)
 
@@ -106,23 +104,21 @@ def make_trainable(net, val):
 	net.trainable = val
 	for l in net.layers:
 		l.trainable = val
+
 	
 make_trainable(discriminator, False)
-
-
-
 # Build stacked GAN model
-"""
+
 gan_input = Input(shape=[100])
 H = generator(gan_input)
 gan_V = discriminator(H)
 GAN = Model(gan_input, gan_V)
 GAN.compile(loss='categorical_crossentropy', optimizer=opt)
 GAN.summary()
-"""
 
-def save_gen(n_ex=16):
-	noise = np.random.uniform(0,1,size=[n_ex, 100])
+
+def save_gen(number=16):
+	noise = np.random.uniform(0,1,size=[number, 100])
 	generated_images = generator.predict(noise)
 	
 	for index,img in enumerate(generated_images):
@@ -133,7 +129,6 @@ ntrain = 10000
 
 #trainidx = random.sample(range(0,x_train.shape[0]), ntrain)
 #XT = x_train[trainidx,:,:,:]
-
 
 
 
