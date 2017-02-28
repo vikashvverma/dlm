@@ -27,7 +27,9 @@ from keras.optimizers import *
 from keras.models import Model
 import random
 
+# Reproducibility 
 np.random.seed(1337)
+random.seed(1337)
 
 parser = argparse.ArgumentParser(description="Generate images with neural networks")
 parser.add_argument("-v", "--verbosity", action="count", help="Increase output verbosity (Can be specified multiple times for more verbosity)", default=0)
@@ -50,18 +52,29 @@ x,y = get_data(path='data/imdb-wiki/handpicked_restructured/')
 # Because floats improves learning efficiency according to http://datascience.stackexchange.com/questions/13636/neural-network-data-type-conversion-float-from-int
 x /= 255
 
+sx, sy = [],[]
+selected_class = "Jennifer Aniston"
+logging.info("Selecting class {}".format(selected_class))
+for xe,ye in zip(x,y):
+	if ye == selected_class:
+		sx.append(xe)
+		sy.append(ye)
+		
+
+sx = np.array(sx)
+sy = np.array(sy)
 
 logging.info("Data loaded")
 
 logging.info("Classes to arrays")
-input_shape = x[0].shape
-classes = set(y)
+input_shape = sx[0].shape
+classes = set(sy)
 nb_classes = len(classes)
 
 logging.info("Categorizes output data")
-uniques, ids = np.unique(y, return_inverse=True)
+uniques, ids = np.unique(sy, return_inverse=True)
 cat_y = np_utils.to_categorical(ids, len(uniques))
-(x_train, x_test), (y_train, y_test) = split_data(x, cat_y)
+(x_train, x_test), (y_train, y_test) = split_data(sx, cat_y, ratio=0.90)
 
 dropout_rate = 0.25
 opt = Adam(lr=1e-4)
@@ -71,17 +84,20 @@ dopt = Adam(lr=1e-3)
 # Build the generator model
 g_input = Input(shape=[100])
 H = Dense(int(3*64*64))(g_input)
+H = BatchNormalization(mode=2)(H)
 H = Activation('relu')(H)
 H = Reshape( [64, 64, 3] )(H)
-H = Convolution2D(int(128), 3, 3, border_mode='same')(H)
+H = Convolution2D(100, 3, 3, border_mode='same')(H)
+H = BatchNormalization(mode=2)(H)
 H = Activation('relu')(H)
-H = Convolution2D(int(64), 3, 3, border_mode='same')(H)
+H = Convolution2D(50, 3, 3, border_mode='same')(H)
+H = BatchNormalization(mode=2)(H)
 H = Activation('relu')(H)
 H = Deconvolution2D(3, 3, 3, border_mode='same', output_shape=(None, 64,64, 3))(H)
 g_V = Activation('sigmoid')(H)
-
 generator = Model(g_input, g_V)
 generator.compile(loss='binary_crossentropy', optimizer=opt)
+print("Generator output: {}".format(generator.output_shape))
 
 
 d_input = Input(shape=(64,64,3))
@@ -98,6 +114,8 @@ H = Dropout(dropout_rate)(H)
 d_V = Dense(2,activation='softmax')(H)
 discriminator = Model(d_input, d_V)
 discriminator.compile(loss='binary_crossentropy', optimizer=dopt)
+print("Discriminator output: {}".format(discriminator.output_shape))
+
 
 
 def make_trainable(net, val):
@@ -114,8 +132,7 @@ H = generator(gan_input)
 gan_V = discriminator(H)
 GAN = Model(gan_input, gan_V)
 GAN.compile(loss='categorical_crossentropy', optimizer=opt)
-GAN.summary()
-
+# GAN.summary()
 
 def save_gen(number=16):
 	noise = np.random.uniform(0,1,size=[number, 100])
@@ -125,10 +142,89 @@ def save_gen(number=16):
 		imgpath = "{}/{}_{:06d}.jpg".format(save_path, imgname, index)
 		cv2.imwrite(imgpath,img)
 
-ntrain = 10000
 
-#trainidx = random.sample(range(0,x_train.shape[0]), ntrain)
-#XT = x_train[trainidx,:,:,:]
+ntrain = 230
+
+trainidx = random.sample(range(0,len(x_train)), ntrain)
+XT = x_train[trainidx,:,:,:]
+
+
+# Pretrain discriminator
+noise = np.random.uniform(0,1, size=[len(XT), 100])
+generated_images = generator.predict(noise)
+X = np.concatenate((XT, generated_images))
+n = len(XT)
+y = np.zeros(shape=(2*n,2))
+
+# Set class values (real or generated image)
+y[:n,1] = 1
+y[n:,0] = 1
+
+make_trainable(discriminator, True)
+discriminator.fit(X,y, nb_epoch=3, batch_size=10)
+y_hat = discriminator.predict(X)
+
+
+# Measure accuracy of pre-trained discriminator
+y_hat_idx = np.argmax(y_hat, axis=1)
+y_idx = np.argmax(y, axis=1)
+diff = y_idx-y_hat_idx
+n_total = len(y)
+n_correct = (diff==0).sum()
+accuracy = n_correct*100.0/n_total
+
+logging.info("Accuracy: {:.2f}% ({} of {}) correct".format(accuracy, n_correct, n_total))
+
+
+
+# Create training function
+def train_gan(nb_epoch=5000, BATCH_SIZE=10):
+	for e in tqdm(range(nb_epoch)):
+		image_batch = x_train[np.random.randint(0, len(x_train), size=BATCH_SIZE),:,:,:]
+		noise_gen = np.random.uniform(0,1, size=(BATCH_SIZE, 100))
+		generated_images = generator.predict(noise_gen)
+
+
+		# Train the discriminator
+		X = np.concatenate((image_batch, generated_images))
+		y = np.zeros((2*BATCH_SIZE, 2))
+		y[0:BATCH_SIZE,1] = 1
+		y[BATCH_SIZE:,0] = 1
+
+		make_trainable(discriminator, True)
+		d_loss = discriminator.train_on_batch(X,y)
+		# losses['d'].append(d_loss) # Add losses to list
+
+		# Train Generator-Discriminator stack on input noise to non-generated output class
+		noise_tr = np.random.uniform(0,1,size=(BATCH_SIZE,100))
+		y2 = np.zeros((BATCH_SIZE,2))
+		y2[:,1] = 1
+
+		make_trainable(discriminator, False)
+
+		g_loss = GAN.train_on_batch(noise_tr, y2)
+		# losses['g'].append(g_loss) # Add losses to list
+
+train_gan(nb_epoch=5000, BATCH_SIZE=10)
+
+
+# Save generated images
+noise_gen = np.random.uniform(0,1, size=(30, 100))
+images = generator.predict(noise_gen)
+images*=255
+images = images.astype('int')
+#import pdb;pdb.set_trace()
+print("Saving generated images")
+
+classname = "_".join(selected_class.split())
+class_folder = "data/imdb-wiki/generated/{}".format(classname)
+os.makedirs(class_folder)
+for index, img in enumerate(images):
+	cv2.imwrite('{}/{}_{}.jpg'.format(class_folder, classname,index), img)
+
+
+
+
 
 
 
