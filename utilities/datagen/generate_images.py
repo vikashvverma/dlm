@@ -51,7 +51,7 @@ def create_collage(images, path='collage.jpg'):
 	rows = int(math.floor(math.sqrt(N)))
 	cols = int(N / rows)
 	# Add one column if N is not perfect square
-	if (math.sqrt(N)-int(math.sqrt(N))):
+	if N != rows*cols:
 		cols += 1
 	# Add blanks if too many slots
 	for _ in range(rows*cols-N):
@@ -62,16 +62,16 @@ def create_collage(images, path='collage.jpg'):
 	for r in range(rows):
 		col_img = None
 		for c in range(cols):
-			if col_img == None:
+			if col_img is None:
 				col_img = images[image_index]
 			else:
-				col_img = np.vstack([col_img, images[image_index]])
+				col_img = np.hstack([col_img, images[image_index]])
 			image_index += 1
 
-		if collage == None:
+		if collage is None:
 			collage = col_img
 		else:
-			collage = np.hstack([collage, col_img])
+			collage = np.vstack([collage, col_img])
 	cv2.imwrite(path, collage)
 				
 
@@ -233,15 +233,15 @@ def train_gan(nb_epoch=5000, BATCH_SIZE=10):
 		g_loss = GAN.train_on_batch(noise_tr, y2)
 		# losses['g'].append(g_loss) # Add losses to list
 
-train_gan(nb_epoch=6000, BATCH_SIZE=10)
+train_gan(nb_epoch=5000, BATCH_SIZE=10)
 
-opt.lr.set_value(1e-5)
-dopt.lr.set_value(1e-4)
-train_for_n(nb_epoch=2000,BATCH_SIZE=10)
+opt.lr = K.variable(1e-5)
+dopt.lr = K.variable(1e-4)
+train_gan(nb_epoch=2000,BATCH_SIZE=10)
 
-opt.lr.set_value(1e-6)
-dopt.lr.set_value(1e-5)
-train_for_n(nb_epoch=2000,BATCH_SIZE=10)
+opt.lr = K.variable(1e-6)
+dopt.lr = K.variable(1e-5)
+train_gan(nb_epoch=2000,BATCH_SIZE=10)
 
 # Save generated images
 noise_gen = np.random.uniform(0,1, size=(30, 100))
@@ -252,7 +252,7 @@ images = images.astype('int')
 print("Saving generated images")
 classname = "_".join(selected_class.split())
 class_folder = "data/imdb-wiki/generated/{}".format(classname)
-create_collage(images, path='data/generated/{}.jpg'.format(classname))
+create_collage(images, path='data/imdb-wiki/generated/{}.jpg'.format(classname))
 os.makedirs(class_folder)
 for index, img in enumerate(images):
 	cv2.imwrite('{}/{}_{}.jpg'.format(class_folder, classname,index), img)
