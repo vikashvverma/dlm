@@ -1,5 +1,5 @@
 # Generate images from celebrities from original looking images
-from dlm.utilities.data_handler import get_imdb_data, split_data, get_data, get_classless_images
+from dlm.utilities.data_handler import get_imdb_data, split_data, get_data, get_classless_images, equal_shuffle
 import argparse
 import logging
 import math
@@ -29,8 +29,8 @@ from keras.models import Model
 import random
 
 # Reproducibility 
-np.random.seed(1337)
-random.seed(1337)
+np.random.seed(2000)
+random.seed(2000)
 
 parser = argparse.ArgumentParser(description="Generate images with neural networks")
 parser.add_argument("-v", "--verbosity", action="count", help="Increase output verbosity (Can be specified multiple times for more verbosity)", default=0)
@@ -45,6 +45,11 @@ elif args.verbosity == 3:
 	loglevel = logging.DEBUG
 
 logging.basicConfig(format='%(levelname)s:%(message)s', level=loglevel)
+
+gan_data_path = "data/gan_data/models"
+date_str = time.strftime("%d-%m-%Y_%H-%M-%S")
+save_dir = "{}/{}".format(gan_data_path, date_str)
+os.makedirs(save_dir, exist_ok=True)
 
 def create_collage(images, path='collage.jpg'):
 	N = len(images)
@@ -115,10 +120,16 @@ H = Dense(int(3*64*64))(g_input)
 H = BatchNormalization(mode=2)(H)
 H = Activation('relu')(H)
 H = Reshape( [64, 64, 3] )(H)
-H = Convolution2D(100, 3, 3, border_mode='same')(H)
+H = Convolution2D(30, 3, 3, border_mode='same')(H)
 H = BatchNormalization(mode=2)(H)
 H = Activation('relu')(H)
-H = Convolution2D(50, 3, 3, border_mode='same')(H)
+H = Convolution2D(60, 3, 3, border_mode='same')(H)
+H = BatchNormalization(mode=2)(H)
+H = Activation('relu')(H)
+H = Convolution2D(120, 5, 5, border_mode='same')(H)
+H = BatchNormalization(mode=2)(H)
+H = Activation('relu')(H)
+H = Convolution2D(240, 5, 5, border_mode='same')(H)
 H = BatchNormalization(mode=2)(H)
 H = Activation('relu')(H)
 H = Deconvolution2D(3, 3, 3, border_mode='same', output_shape=(None, 64,64, 3))(H)
@@ -204,7 +215,7 @@ accuracy = n_correct*100.0/n_total
 logging.info("Accuracy: {:.2f}% ({} of {}) correct".format(accuracy, n_correct, n_total))
 
 
-
+losses = {'discriminator':[], 'gan':[]}
 # Create training function
 def train_gan(nb_epoch=5000, BATCH_SIZE=10):
 	for e in tqdm(range(nb_epoch)):
@@ -221,7 +232,7 @@ def train_gan(nb_epoch=5000, BATCH_SIZE=10):
 
 		make_trainable(discriminator, True)
 		d_loss = discriminator.train_on_batch(X,y)
-		# losses['d'].append(d_loss) # Add losses to list
+		losses['discriminator'].append(d_loss) # Add losses to list
 
 		# Train Generator-Discriminator stack on input noise to non-generated output class
 		noise_tr = np.random.uniform(0,1,size=(BATCH_SIZE,100))
@@ -231,17 +242,17 @@ def train_gan(nb_epoch=5000, BATCH_SIZE=10):
 		make_trainable(discriminator, False)
 
 		g_loss = GAN.train_on_batch(noise_tr, y2)
-		# losses['g'].append(g_loss) # Add losses to list
+		losses['gan'].append(g_loss) # Add losses to list
 
-train_gan(nb_epoch=5000, BATCH_SIZE=10)
 
-opt.lr = K.variable(1e-5)
-dopt.lr = K.variable(1e-4)
-train_gan(nb_epoch=2000,BATCH_SIZE=10)
+train_gan(nb_epoch=100, BATCH_SIZE=10)
+#opt.lr = K.variable(1e-5)
+#dopt.lr = K.variable(1e-4)
+#train_gan(nb_epoch=2000,BATCH_SIZE=10)
 
-opt.lr = K.variable(1e-6)
-dopt.lr = K.variable(1e-5)
-train_gan(nb_epoch=2000,BATCH_SIZE=10)
+#opt.lr = K.variable(1e-6)
+#dopt.lr = K.variable(1e-5)
+#train_gan(nb_epoch=2000,BATCH_SIZE=10)
 
 # Save generated images
 noise_gen = np.random.uniform(0,1, size=(30, 100))
@@ -251,12 +262,29 @@ images = images.astype('int')
 #import pdb;pdb.set_trace()
 print("Saving generated images")
 classname = "_".join(selected_class.split())
-class_folder = "data/imdb-wiki/generated/{}".format(classname)
-create_collage(images, path='data/imdb-wiki/generated/{}.jpg'.format(classname))
+class_folder = "{}/{}".format(save_dir,classname)
+create_collage(images, path='{}/{}.jpg'.format(save_dir, classname))
 os.makedirs(class_folder)
 for index, img in enumerate(images):
 	cv2.imwrite('{}/{}_{}.jpg'.format(class_folder, classname,index), img)
 
+
+
+logging.info("Saving model to model folder")
+GAN.save("{}/GAN_model.h5".format(save_dir))
+discriminator.save("{}/discriminator_model.h5".format(save_dir))
+generator.save("{}/generator_model.h5".format(save_dir))
+
+logging.info("Saving summaries as txt")
+with open('{}/summaries.txt'.format(save_dir),'w') as sumfile:
+	sys.stdout = sumfile
+	print("----GAN SUMMARY----")
+	GAN.summary()
+	print("----discriminator SUMMARY----")
+	discriminator.summary()
+	print("----generator SUMMARY----")
+	generator.summary()
+	sys.stdout = sys.__stdout__
 
 
 

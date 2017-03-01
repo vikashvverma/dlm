@@ -107,6 +107,14 @@ def get_classless_images(path='data/imdb-wiki/handpicked_restructured/Jennifer_A
 		images.append(img)
 	return images
 
+def equal_shuffle(*data):
+	# Get rng state
+	original_rng_state = np.random.get_state()
+	for d in data:
+		np.random.set_state(original_rng_state)
+		np.random.shuffle(d)
+	return data
+
 def split_data(*data, ratio=0.8):
 	l = []
 	for dset in data:
