@@ -121,16 +121,10 @@ H = BatchNormalization(mode=2)(H)
 H = Activation('relu')(H)
 H = Reshape( [64, 64, 3] )(H)
 H = Convolution2D(30, 3, 3, border_mode='same')(H)
-H = BatchNormalization(mode=2)(H)
+#H = BatchNormalization(mode=2)(H)
 H = Activation('relu')(H)
 H = Convolution2D(60, 3, 3, border_mode='same')(H)
-H = BatchNormalization(mode=2)(H)
-H = Activation('relu')(H)
-H = Convolution2D(120, 5, 5, border_mode='same')(H)
-H = BatchNormalization(mode=2)(H)
-H = Activation('relu')(H)
-H = Convolution2D(240, 5, 5, border_mode='same')(H)
-H = BatchNormalization(mode=2)(H)
+#H = BatchNormalization(mode=2)(H)
 H = Activation('relu')(H)
 H = Deconvolution2D(3, 3, 3, border_mode='same', output_shape=(None, 64,64, 3))(H)
 g_V = Activation('sigmoid')(H)
@@ -155,8 +149,6 @@ discriminator = Model(d_input, d_V)
 discriminator.compile(loss='binary_crossentropy', optimizer=dopt)
 print("Discriminator output: {}".format(discriminator.output_shape))
 
-
-
 def make_trainable(net, val):
 	net.trainable = val
 	for l in net.layers:
@@ -164,14 +156,13 @@ def make_trainable(net, val):
 
 	
 make_trainable(discriminator, False)
-# Build stacked GAN model
 
+# Build stacked GAN model
 gan_input = Input(shape=[100])
 H = generator(gan_input)
 gan_V = discriminator(H)
 GAN = Model(gan_input, gan_V)
 GAN.compile(loss='categorical_crossentropy', optimizer=opt)
-# GAN.summary()
 
 def save_gen(number=16):
 	noise = np.random.uniform(0,1,size=[number, 100])
@@ -199,8 +190,10 @@ y = np.zeros(shape=(2*n,2))
 y[:n,1] = 1
 y[n:,0] = 1
 
+# Shuffle data
+equal_shuffle(X,y)
 make_trainable(discriminator, True)
-discriminator.fit(X,y, nb_epoch=3, batch_size=10)
+discriminator.fit(X,y, nb_epoch=3, batch_size=7)
 y_hat = discriminator.predict(X)
 
 
@@ -245,14 +238,14 @@ def train_gan(nb_epoch=5000, BATCH_SIZE=10):
 		losses['gan'].append(g_loss) # Add losses to list
 
 
-train_gan(nb_epoch=100, BATCH_SIZE=10)
-#opt.lr = K.variable(1e-5)
-#dopt.lr = K.variable(1e-4)
-#train_gan(nb_epoch=2000,BATCH_SIZE=10)
+train_gan(nb_epoch=30000, BATCH_SIZE=10)
+opt.lr = K.variable(1e-5)
+dopt.lr = K.variable(1e-4)
+train_gan(nb_epoch=2000,BATCH_SIZE=10)
 
-#opt.lr = K.variable(1e-6)
-#dopt.lr = K.variable(1e-5)
-#train_gan(nb_epoch=2000,BATCH_SIZE=10)
+opt.lr = K.variable(1e-6)
+dopt.lr = K.variable(1e-5)
+train_gan(nb_epoch=2000,BATCH_SIZE=10)
 
 # Save generated images
 noise_gen = np.random.uniform(0,1, size=(30, 100))
@@ -267,7 +260,6 @@ create_collage(images, path='{}/{}.jpg'.format(save_dir, classname))
 os.makedirs(class_folder)
 for index, img in enumerate(images):
 	cv2.imwrite('{}/{}_{}.jpg'.format(class_folder, classname,index), img)
-
 
 
 logging.info("Saving model to model folder")
@@ -286,6 +278,21 @@ with open('{}/summaries.txt'.format(save_dir),'w') as sumfile:
 	generator.summary()
 	sys.stdout = sys.__stdout__
 
+logging.info("Save losses to file")
+loss_keys = list(losses.keys())
+losslists = [losses[l] for l in loss_keys]
+with open("{}/{}".format(save_dir, "losses.txt"), 'w') as loss_file:
+	header_string = "epoch"
+	for k in loss_keys:
+		header_string += ",%s" % k
+	loss_file.write("{}\n".format(header_string))
+
+	for epoch, loss_vals in enumerate(zip(*losslists)):
+		line = "{}".format(epoch+1)
+		for l in loss_vals:
+			line += ",{}".format(l)
+
+		loss_file.write("{}\n".format(line))
 
 
 
