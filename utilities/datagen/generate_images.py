@@ -193,7 +193,7 @@ y[n:,0] = 1
 # Shuffle data
 equal_shuffle(X,y)
 make_trainable(discriminator, True)
-discriminator.fit(X,y, nb_epoch=3, batch_size=7)
+discriminator.fit(X,y, nb_epoch=1, batch_size=7)
 y_hat = discriminator.predict(X)
 
 
@@ -210,42 +210,42 @@ logging.info("Accuracy: {:.2f}% ({} of {}) correct".format(accuracy, n_correct, 
 
 losses = {'discriminator':[], 'gan':[]}
 # Create training function
-def train_gan(nb_epoch=5000, BATCH_SIZE=10):
+def train_gan(nb_epoch=5000, batch_size=10):
 	for e in tqdm(range(nb_epoch)):
-		image_batch = x_train[np.random.randint(0, len(x_train), size=BATCH_SIZE),:,:,:]
-		noise_gen = np.random.uniform(0,1, size=(BATCH_SIZE, 100))
+		image_batch = x_train[np.random.randint(0, len(x_train), size=batch_size),:,:,:]
+		noise_gen = np.random.uniform(0,1, size=(batch_size, 100))
 		generated_images = generator.predict(noise_gen)
 
 
 		# Train the discriminator
-		X = np.concatenate((image_batch, generated_images))
-		y = np.zeros((2*BATCH_SIZE, 2))
-		y[0:BATCH_SIZE,1] = 1
-		y[BATCH_SIZE:,0] = 1
+		x = np.concatenate((image_batch, generated_images))
+		y = np.zeros((2*batch_size, 2))
+		y[0:batch_size,1] = 1
+		y[batch_size:,0] = 1
 
 		make_trainable(discriminator, True)
-		d_loss = discriminator.train_on_batch(X,y)
+		d_loss = discriminator.train_on_batch(x,y)
 		losses['discriminator'].append(d_loss) # Add losses to list
 
 		# Train Generator-Discriminator stack on input noise to non-generated output class
-		noise_tr = np.random.uniform(0,1,size=(BATCH_SIZE,100))
-		y2 = np.zeros((BATCH_SIZE,2))
+		noise_tr = np.random.uniform(0,1,size=(batch_size,100))
+		y2 = np.zeros((batch_size,2))
 		y2[:,1] = 1
 
-		make_trainable(discriminator, False)
+		make_trainable(discriminator, False) # Discriminator doesnt get trained whilst training the generator
 
 		g_loss = GAN.train_on_batch(noise_tr, y2)
 		losses['gan'].append(g_loss) # Add losses to list
 
 
-train_gan(nb_epoch=30000, BATCH_SIZE=10)
-opt.lr = K.variable(1e-5)
-dopt.lr = K.variable(1e-4)
-train_gan(nb_epoch=2000,BATCH_SIZE=10)
+train_gan(nb_epoch=7000, batch_size=20)
+#opt.lr = K.variable(1e-5)
+#dopt.lr = K.variable(1e-4)
+#train_gan(nb_epoch=2000,batch_size=10)
 
-opt.lr = K.variable(1e-6)
-dopt.lr = K.variable(1e-5)
-train_gan(nb_epoch=2000,BATCH_SIZE=10)
+#opt.lr = K.variable(1e-6)
+#dopt.lr = K.variable(1e-5)
+#train_gan(nb_epoch=2000,batch_size=10)
 
 # Save generated images
 noise_gen = np.random.uniform(0,1, size=(30, 100))
