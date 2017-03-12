@@ -21,6 +21,7 @@ from keras.activations import *
 from keras.layers.wrappers import TimeDistributed
 from keras.layers.noise import GaussianNoise
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D, UpSampling2D, Deconvolution2D
+from keras.preprocessing.image import ImageDataGenerator
 from keras.layers.recurrent import LSTM
 from keras.regularizers import *
 from keras.layers.normalization import *
@@ -33,6 +34,7 @@ np.random.seed(2000)
 random.seed(2000)
 
 parser = argparse.ArgumentParser(description="Generate images with neural networks")
+parser.add_argument("-b", "--batch-size", help="specify batch size")
 parser.add_argument("-v", "--verbosity", action="count", help="Increase output verbosity (Can be specified multiple times for more verbosity)", default=0)
 args = parser.parse_args()
 loglevel = logging.ERROR
@@ -109,23 +111,31 @@ uniques, ids = np.unique(sy, return_inverse=True)
 cat_y = np_utils.to_categorical(ids, len(uniques))
 (x_train, x_test), (y_train, y_test) = split_data(sx, cat_y, ratio=0.90)
 
-dropout_rate = 0.25
 opt = Adam(lr=1e-4)
 dopt = Adam(lr=1e-3)
 
 
 # Build the generator model
 g_input = Input(shape=[100])
-H = Dense(int(3*64*64))(g_input)
+
+H = Dense(64*64*3)(g_input)
 H = BatchNormalization(mode=2)(H)
 H = Activation('relu')(H)
+H = LeakyReLU(0.2)(H)
+
 H = Reshape( [64, 64, 3] )(H)
-H = Convolution2D(30, 3, 3, border_mode='same')(H)
-#H = BatchNormalization(mode=2)(H)
+#H = UpSampling2D(size=(2,2))(H)
+
+H = Convolution2D(64, 3, 3, border_mode='same')(H)
+H = BatchNormalization(mode=2)(H)
 H = Activation('relu')(H)
-H = Convolution2D(60, 3, 3, border_mode='same')(H)
-#H = BatchNormalization(mode=2)(H)
+H = LeakyReLU(0.2)(H)
+
+H = Convolution2D(128, 3, 3, border_mode='same')(H)
+H = BatchNormalization(mode=2)(H)
 H = Activation('relu')(H)
+H = LeakyReLU(0.2)(H)
+
 H = Deconvolution2D(3, 3, 3, border_mode='same', output_shape=(None, 64,64, 3))(H)
 g_V = Activation('sigmoid')(H)
 generator = Model(g_input, g_V)
@@ -134,16 +144,16 @@ print("Generator output: {}".format(generator.output_shape))
 
 
 d_input = Input(shape=(64,64,3))
-H = Convolution2D(256, 5, 5, subsample=(2, 2), border_mode = 'same', activation='relu')(d_input)
+H = Convolution2D(64, 5, 5, subsample=(2, 2), border_mode = 'same')(d_input)
 H = LeakyReLU(0.2)(H)
-H = Dropout(dropout_rate)(H)
-H = Convolution2D(512, 5, 5, subsample=(2, 2), border_mode = 'same', activation='relu')(H)
+H = Dropout(0.1)(H)
+H = Convolution2D(128, 5, 5, subsample=(2, 2), border_mode = 'same')(H)
 H = LeakyReLU(0.2)(H)
-H = Dropout(dropout_rate)(H)
+H = Dropout(0.1)(H)
 H = Flatten()(H)
 H = Dense(256)(H)
 H = LeakyReLU(0.2)(H)
-H = Dropout(dropout_rate)(H)
+H = Dropout(0.1)(H)
 d_V = Dense(2,activation='softmax')(H)
 discriminator = Model(d_input, d_V)
 discriminator.compile(loss='binary_crossentropy', optimizer=dopt)
@@ -207,15 +217,49 @@ accuracy = n_correct*100.0/n_total
 
 logging.info("Accuracy: {:.2f}% ({} of {}) correct".format(accuracy, n_correct, n_total))
 
+def save_epoch(cur_epoch):
+	noise_gen = np.random.uniform(0,1, size=(30, 100))
+	images = generator.predict(noise_gen)
+	images*=255
+	images = images.astype('int')
+
+	logging.info("Saving generated images")
+	classname = "_".join(selected_class.split())
+	class_folder = "{}/{}_{}".format(save_dir,cur_epoch, classname)
+	create_collage(images, path='{}/{}_{}.jpg'.format(save_dir, cur_epoch, classname))
+	"""
+	# Save images in separate folder
+	os.makedirs(class_folder)
+	for index, img in enumerate(images):
+		cv2.imwrite('{}/{}_{}.jpg'.format(class_folder, classname,index), img)
+	"""
+	logging.info("Saving model to model folder")
+	GAN.save("{}/GAN_model.h5".format(save_dir))
+	discriminator.save("{}/{}_discriminator_model.h5".format(save_dir,cur_epoch))
+	generator.save("{}/{}_generator_model.h5".format(save_dir, cur_epoch))
+
 
 losses = {'discriminator':[], 'gan':[]}
 # Create training function
-def train_gan(nb_epoch=5000, batch_size=10):
+def train_gan(nb_epoch=5000, batch_size=10, save_frequency=1000):
+	datagen = ImageDataGenerator(
+    	#featurewise_center=True,
+	    #featurewise_std_normalization=True,
+	    rotation_range=10,
+	    #width_shift_range=0.2,
+	    #height_shift_range=0.2,
+	    horizontal_flip=True
+	)
+	datagen.fit(x_train) # Returns a generator which returns a tuple (x_batch, y_batch) where y_batch is 
+	realimage_generator = datagen.flow(x_train, y_train, batch_size=len(x_train)) # Use this to generate "real" images. (Data augmentation)
+
 	for e in tqdm(range(nb_epoch)):
 		image_batch = x_train[np.random.randint(0, len(x_train), size=batch_size),:,:,:]
+		#real_generated_images = realimage_generator.next()[0] 
+		#image_batch = real_generated_images[np.random.randint(0, len(real_generated_images), size=batch_size),:,:,:]
 		noise_gen = np.random.uniform(0,1, size=(batch_size, 100))
 		generated_images = generator.predict(noise_gen)
-
+		
 
 		# Train the discriminator
 		x = np.concatenate((image_batch, generated_images))
@@ -236,36 +280,18 @@ def train_gan(nb_epoch=5000, batch_size=10):
 
 		g_loss = GAN.train_on_batch(noise_tr, y2)
 		losses['gan'].append(g_loss) # Add losses to list
+	
+		if e % save_frequency == 0 and e != 0:
+			save_epoch(e)
 
+	save_epoch(e)
 
-train_gan(nb_epoch=7000, batch_size=20)
-#opt.lr = K.variable(1e-5)
-#dopt.lr = K.variable(1e-4)
-#train_gan(nb_epoch=2000,batch_size=10)
-
-#opt.lr = K.variable(1e-6)
-#dopt.lr = K.variable(1e-5)
-#train_gan(nb_epoch=2000,batch_size=10)
-
-# Save generated images
-noise_gen = np.random.uniform(0,1, size=(30, 100))
-images = generator.predict(noise_gen)
-images*=255
-images = images.astype('int')
-#import pdb;pdb.set_trace()
-print("Saving generated images")
-classname = "_".join(selected_class.split())
-class_folder = "{}/{}".format(save_dir,classname)
-create_collage(images, path='{}/{}.jpg'.format(save_dir, classname))
-os.makedirs(class_folder)
-for index, img in enumerate(images):
-	cv2.imwrite('{}/{}_{}.jpg'.format(class_folder, classname,index), img)
-
-
-logging.info("Saving model to model folder")
-GAN.save("{}/GAN_model.h5".format(save_dir))
-discriminator.save("{}/discriminator_model.h5".format(save_dir))
-generator.save("{}/generator_model.h5".format(save_dir))
+if not args.batch_size and not args.batch_size.is_digit():
+	bs = 50
+	logging.info("Batch size not specified, using default of {}".format(bs))
+else:
+	logging.info("Batch size {} was specified in arguments".format(args.batch_size))
+	bs = int(args.batch_size)
 
 logging.info("Saving summaries as txt")
 with open('{}/summaries.txt'.format(save_dir),'w') as sumfile:
@@ -277,6 +303,20 @@ with open('{}/summaries.txt'.format(save_dir),'w') as sumfile:
 	print("----generator SUMMARY----")
 	generator.summary()
 	sys.stdout = sys.__stdout__
+
+
+train_gan(nb_epoch=100000, batch_size=bs, save_frequency=1000)
+
+#opt.lr = K.variable(1e-5)
+#dopt.lr = K.variable(1e-4)
+#train_gan(nb_epoch=2000,batch_size=10)
+
+#opt.lr = K.variable(1e-6)
+#dopt.lr = K.variable(1e-5)
+#train_gan(nb_epoch=2000,batch_size=10)
+
+# Save generated images
+
 
 logging.info("Save losses to file")
 loss_keys = list(losses.keys())
