@@ -1,5 +1,6 @@
 # Generate images from celebrities from original looking images
 from dlm.utilities.data_handler import get_imdb_data, split_data, get_data, get_classless_images, equal_shuffle
+from dlm.utilities.csv_plot import plot_csv
 import argparse
 import logging
 import math
@@ -111,8 +112,8 @@ uniques, ids = np.unique(sy, return_inverse=True)
 cat_y = np_utils.to_categorical(ids, len(uniques))
 (x_train, x_test), (y_train, y_test) = split_data(sx, cat_y, ratio=0.90)
 
-opt = Adam(lr=1e-4)
-dopt = Adam(lr=1e-3)
+opt = Adam(lr=1e-5, decay=1e-14)
+dopt = Adam(lr=1e-4, decay=1e-14)
 
 
 # Build the generator model
@@ -135,6 +136,16 @@ H = Convolution2D(128, 3, 3, border_mode='same')(H)
 H = BatchNormalization(mode=2)(H)
 H = Activation('relu')(H)
 H = LeakyReLU(0.2)(H)
+
+#H = Convolution2D(256, 3, 3, border_mode='same')(H)
+#H = BatchNormalization(mode=2)(H)
+#H = Activation('relu')(H)
+#H = LeakyReLU(0.2)(H)
+
+#H = Convolution2D(512, 3, 3, border_mode='same')(H)
+#H = BatchNormalization(mode=2)(H)
+#H = Activation('relu')(H)
+#H = LeakyReLU(0.2)(H)
 
 H = Deconvolution2D(3, 3, 3, border_mode='same', output_shape=(None, 64,64, 3))(H)
 g_V = Activation('sigmoid')(H)
@@ -217,7 +228,7 @@ accuracy = n_correct*100.0/n_total
 
 logging.info("Accuracy: {:.2f}% ({} of {}) correct".format(accuracy, n_correct, n_total))
 
-def save_epoch(cur_epoch):
+def save_epoch(cur_epoch, include_model=False):
 	noise_gen = np.random.uniform(0,1, size=(30, 100))
 	images = generator.predict(noise_gen)
 	images*=255
@@ -233,15 +244,16 @@ def save_epoch(cur_epoch):
 	for index, img in enumerate(images):
 		cv2.imwrite('{}/{}_{}.jpg'.format(class_folder, classname,index), img)
 	"""
-	logging.info("Saving model to model folder")
-	GAN.save("{}/GAN_model.h5".format(save_dir))
-	discriminator.save("{}/{}_discriminator_model.h5".format(save_dir,cur_epoch))
-	generator.save("{}/{}_generator_model.h5".format(save_dir, cur_epoch))
+	if include_model:
+		logging.info("Saving models to model folder")
+		GAN.save("{}/{}_GAN_model.h5".format(save_dir, cur_epoch))
+		discriminator.save("{}/{}_discriminator_model.h5".format(save_dir,cur_epoch))
+		generator.save("{}/{}_generator_model.h5".format(save_dir, cur_epoch))
 
 
 losses = {'discriminator':[], 'gan':[]}
 # Create training function
-def train_gan(nb_epoch=5000, batch_size=10, save_frequency=1000):
+def train_gan(nb_epoch=5000, batch_size=10, save_frequency=1000, save_model_checkpoints=False):
 	datagen = ImageDataGenerator(
     	#featurewise_center=True,
 	    #featurewise_std_normalization=True,
@@ -254,9 +266,11 @@ def train_gan(nb_epoch=5000, batch_size=10, save_frequency=1000):
 	realimage_generator = datagen.flow(x_train, y_train, batch_size=len(x_train)) # Use this to generate "real" images. (Data augmentation)
 
 	for e in tqdm(range(nb_epoch)):
-		image_batch = x_train[np.random.randint(0, len(x_train), size=batch_size),:,:,:]
-		#real_generated_images = realimage_generator.next()[0] 
-		#image_batch = real_generated_images[np.random.randint(0, len(real_generated_images), size=batch_size),:,:,:]
+		#image_batch = x_train[np.random.randint(0, len(x_train), size=batch_size),:,:,:] 
+
+		real_generated_images = realimage_generator.next()[0]
+		image_batch = real_generated_images[np.random.randint(0, len(real_generated_images), size=batch_size),:,:,:]
+
 		noise_gen = np.random.uniform(0,1, size=(batch_size, 100))
 		generated_images = generator.predict(noise_gen)
 		
@@ -282,9 +296,9 @@ def train_gan(nb_epoch=5000, batch_size=10, save_frequency=1000):
 		losses['gan'].append(g_loss) # Add losses to list
 	
 		if e % save_frequency == 0 and e != 0:
-			save_epoch(e)
+			save_epoch(e, save_model_checkpoints)
 
-	save_epoch(e)
+	save_epoch(e, include_model=True)
 
 if not args.batch_size and not args.batch_size.is_digit():
 	bs = 50
@@ -305,11 +319,11 @@ with open('{}/summaries.txt'.format(save_dir),'w') as sumfile:
 	sys.stdout = sys.__stdout__
 
 
-train_gan(nb_epoch=100000, batch_size=bs, save_frequency=1000)
+train_gan(nb_epoch=200000, batch_size=bs, save_frequency=1000)
 
-#opt.lr = K.variable(1e-5)
-#dopt.lr = K.variable(1e-4)
-#train_gan(nb_epoch=2000,batch_size=10)
+#opt.lr = K.variable(1e-6)
+#dopt.lr = K.variable(1e-5)
+#train_gan(nb_epoch=2000,batch_size=bs)
 
 #opt.lr = K.variable(1e-6)
 #dopt.lr = K.variable(1e-5)
@@ -321,7 +335,8 @@ train_gan(nb_epoch=100000, batch_size=bs, save_frequency=1000)
 logging.info("Save losses to file")
 loss_keys = list(losses.keys())
 losslists = [losses[l] for l in loss_keys]
-with open("{}/{}".format(save_dir, "losses.txt"), 'w') as loss_file:
+csvpath = "{}/{}".format(save_dir, "losses.txt")
+with open(csvpath, 'w') as loss_file:
 	header_string = "epoch"
 	for k in loss_keys:
 		header_string += ",%s" % k
@@ -334,11 +349,4 @@ with open("{}/{}".format(save_dir, "losses.txt"), 'w') as loss_file:
 
 		loss_file.write("{}\n".format(line))
 
-
-
-
-
-
-
-
-
+plot_csv(csvpath)
