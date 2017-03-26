@@ -11,7 +11,7 @@ import os
 import time
 import sys
 from keras.utils import np_utils
-from tqdm import tqdm
+from tqdm import tqdm, trange
 import numpy as np
 from keras.utils import np_utils
 import keras.models as models
@@ -28,6 +28,7 @@ from keras.regularizers import *
 from keras.layers.normalization import *
 from keras.optimizers import *
 from keras.models import Model
+from collections import OrderedDict
 import random
 
 # Reproducibility 
@@ -81,272 +82,272 @@ def create_collage(images, path='collage.jpg'):
 		else:
 			collage = np.vstack([collage, col_img])
 	cv2.imwrite(path, collage)
-				
 
+def set_trainable(model, allow_train):
+        model.trainable = allow_train
+        for l in model.layers:
+                l.trainable = allow_train
 
-x,y = get_data(path='data/imdb-wiki/handpicked_restructured/')
-# Because floats improves learning efficiency according to http://datascience.stackexchange.com/questions/13636/neural-network-data-type-conversion-float-from-int
-x /= 255
-
-sx, sy = [],[]
-selected_class = "Jennifer Aniston"
-logging.info("Selecting class {}".format(selected_class))
-for xe,ye in zip(x,y):
-	if ye == selected_class:
-		sx.append(xe)
-		sy.append(ye)
-		
-
-sx = np.array(sx)
-sy = np.array(sy)
-
+#x,y = get_data(path='data/imdb-wiki/handpicked_restructured/')
+x_train,y_train = get_data(path='data/lfw/lfw_split_cropped/train/', resize=(64,64))
+x_test,y_test = get_data(path='data/lfw/lfw_split_cropped/test/', resize=(64,64))
 logging.info("Data loaded")
+# Because floats improves learning efficiency according to http://datascience.stackexchange.com/questions/13636/neural-network-data-type-conversion-float-from-int
+x_train /= 255
+x_test /= 255
 
 logging.info("Classes to arrays")
-input_shape = sx[0].shape
-classes = set(sy)
+input_shape = x_train.shape[1:]
+classes = set(y_train)
 nb_classes = len(classes)
 
 logging.info("Categorizes output data")
-uniques, ids = np.unique(sy, return_inverse=True)
+uniques, ids = np.unique(y_train, return_inverse=True)
 cat_y = np_utils.to_categorical(ids, len(uniques))
-(x_train, x_test), (y_train, y_test) = split_data(sx, cat_y, ratio=0.90)
 
-opt = Adam(lr=1e-5, decay=1e-14)
-dopt = Adam(lr=1e-4, decay=1e-14)
-
-
-# Build the generator model
-g_input = Input(shape=[100])
-
-H = Dense(64*64*3)(g_input)
-H = BatchNormalization(mode=2)(H)
-H = Activation('relu')(H)
-H = LeakyReLU(0.2)(H)
-
-H = Reshape( [64, 64, 3] )(H)
-#H = UpSampling2D(size=(2,2))(H)
-
-H = Convolution2D(64, 3, 3, border_mode='same')(H)
-H = BatchNormalization(mode=2)(H)
-H = Activation('relu')(H)
-H = LeakyReLU(0.2)(H)
-
-H = Convolution2D(128, 3, 3, border_mode='same')(H)
-H = BatchNormalization(mode=2)(H)
-H = Activation('relu')(H)
-H = LeakyReLU(0.2)(H)
-
-#H = Convolution2D(256, 3, 3, border_mode='same')(H)
-#H = BatchNormalization(mode=2)(H)
-#H = Activation('relu')(H)
-#H = LeakyReLU(0.2)(H)
-
-#H = Convolution2D(512, 3, 3, border_mode='same')(H)
-#H = BatchNormalization(mode=2)(H)
-#H = Activation('relu')(H)
-#H = LeakyReLU(0.2)(H)
-
-H = Deconvolution2D(3, 3, 3, border_mode='same', output_shape=(None, 64,64, 3))(H)
-g_V = Activation('sigmoid')(H)
-generator = Model(g_input, g_V)
-generator.compile(loss='binary_crossentropy', optimizer=opt)
-print("Generator output: {}".format(generator.output_shape))
+data_dict_x = OrderedDict()
+data_dict_y = OrderedDict()
+for nx, ny, ny_vec in zip(x_train,y_train, cat_y):
+	data_dict_x[ny] = data_dict_x.get(ny, []) + [nx]
+	data_dict_y[ny] = data_dict_y.get(ny, []) + [ny_vec]
 
 
-d_input = Input(shape=(64,64,3))
-H = Convolution2D(64, 5, 5, subsample=(2, 2), border_mode = 'same')(d_input)
-H = LeakyReLU(0.2)(H)
-H = Dropout(0.1)(H)
-H = Convolution2D(128, 5, 5, subsample=(2, 2), border_mode = 'same')(H)
-H = LeakyReLU(0.2)(H)
-H = Dropout(0.1)(H)
-H = Flatten()(H)
-H = Dense(256)(H)
-H = LeakyReLU(0.2)(H)
-H = Dropout(0.1)(H)
-d_V = Dense(2,activation='softmax')(H)
-discriminator = Model(d_input, d_V)
-discriminator.compile(loss='binary_crossentropy', optimizer=dopt)
-print("Discriminator output: {}".format(discriminator.output_shape))
+# Convert data_dict arrays to numpy
+for dict_class in data_dict_x:
+	data_dict_x[dict_class] = np.array(data_dict_x[dict_class])
+	data_dict_y[dict_class] = np.array(data_dict_y[dict_class])
 
-def make_trainable(net, val):
-	net.trainable = val
-	for l in net.layers:
-		l.trainable = val
+#(x_train, x_test), (y_train, y_test) = split_data(sx, cat_y, ratio=0.90)
 
-	
-make_trainable(discriminator, False)
-
-# Build stacked GAN model
-gan_input = Input(shape=[100])
-H = generator(gan_input)
-gan_V = discriminator(H)
-GAN = Model(gan_input, gan_V)
-GAN.compile(loss='categorical_crossentropy', optimizer=opt)
-
-def save_gen(number=16):
-	noise = np.random.uniform(0,1,size=[number, 100])
-	generated_images = generator.predict(noise)
-	
-	for index,img in enumerate(generated_images):
-		imgpath = "{}/{}_{:06d}.jpg".format(save_path, imgname, index)
-		cv2.imwrite(imgpath,img)
+for class_index, selected_class in enumerate(data_dict_x):
+	class_dir = os.path.join(save_dir, "_".join(selected_class.split()))
+	os.makedirs(class_dir)
+	x_class = data_dict_x[selected_class]
+	y_class = data_dict_y[selected_class]
 
 
-ntrain = 230
+	opt = Adam(lr=1e-5, decay=1e-14)
+	dopt = Adam(lr=1e-4, decay=1e-14)
 
-trainidx = random.sample(range(0,len(x_train)), ntrain)
-XT = x_train[trainidx,:,:,:]
+	# Build the generator model
+	g_input = Input(shape=[100])
 
+	H = Dense(64*64*3)(g_input)
+	H = BatchNormalization(mode=2)(H)
+	H = Activation('relu')(H)
+	H = LeakyReLU(0.2)(H)
 
-# Pretrain discriminator
-noise = np.random.uniform(0,1, size=[len(XT), 100])
-generated_images = generator.predict(noise)
-X = np.concatenate((XT, generated_images))
-n = len(XT)
-y = np.zeros(shape=(2*n,2))
+	H = Reshape( [64, 64, 3] )(H)
+	#H = UpSampling2D(size=(2,2))(H)
 
-# Set class values (real or generated image)
-y[:n,1] = 1
-y[n:,0] = 1
+	H = Convolution2D(64, 3, 3, border_mode='same')(H)
+	H = BatchNormalization(mode=2)(H)
+	H = Activation('relu')(H)
+	H = LeakyReLU(0.2)(H)
 
-# Shuffle data
-equal_shuffle(X,y)
-make_trainable(discriminator, True)
-discriminator.fit(X,y, nb_epoch=1, batch_size=7)
-y_hat = discriminator.predict(X)
+	H = Convolution2D(128, 3, 3, border_mode='same')(H)
+	H = BatchNormalization(mode=2)(H)
+	H = Activation('relu')(H)
+	H = LeakyReLU(0.2)(H)
 
+	#H = Convolution2D(256, 3, 3, border_mode='same')(H)
+	#H = BatchNormalization(mode=2)(H)
+	#H = Activation('relu')(H)
+	#H = LeakyReLU(0.2)(H)
 
-# Measure accuracy of pre-trained discriminator
-y_hat_idx = np.argmax(y_hat, axis=1)
-y_idx = np.argmax(y, axis=1)
-diff = y_idx-y_hat_idx
-n_total = len(y)
-n_correct = (diff==0).sum()
-accuracy = n_correct*100.0/n_total
+	#H = Convolution2D(512, 3, 3, border_mode='same')(H)
+	#H = BatchNormalization(mode=2)(H)
+	#H = Activation('relu')(H)
+	#H = LeakyReLU(0.2)(H)
 
-logging.info("Accuracy: {:.2f}% ({} of {}) correct".format(accuracy, n_correct, n_total))
-
-def save_epoch(cur_epoch, include_model=False):
-	noise_gen = np.random.uniform(0,1, size=(30, 100))
-	images = generator.predict(noise_gen)
-	images*=255
-	images = images.astype('int')
-
-	logging.info("Saving generated images")
-	classname = "_".join(selected_class.split())
-	class_folder = "{}/{}_{}".format(save_dir,cur_epoch, classname)
-	create_collage(images, path='{}/{}_{}.jpg'.format(save_dir, cur_epoch, classname))
-	"""
-	# Save images in separate folder
-	os.makedirs(class_folder)
-	for index, img in enumerate(images):
-		cv2.imwrite('{}/{}_{}.jpg'.format(class_folder, classname,index), img)
-	"""
-	if include_model:
-		logging.info("Saving models to model folder")
-		GAN.save("{}/{}_GAN_model.h5".format(save_dir, cur_epoch))
-		discriminator.save("{}/{}_discriminator_model.h5".format(save_dir,cur_epoch))
-		generator.save("{}/{}_generator_model.h5".format(save_dir, cur_epoch))
+	H = Deconvolution2D(3, 3, 3, border_mode='same', output_shape=(None, 64,64, 3))(H)
+	g_V = Activation('sigmoid')(H)
+	generator = Model(g_input, g_V)
+	generator.compile(loss='binary_crossentropy', optimizer=opt)
+	print("Generator output: {}".format(generator.output_shape))
 
 
-losses = {'discriminator':[], 'gan':[]}
-# Create training function
-def train_gan(nb_epoch=5000, batch_size=10, save_frequency=1000, save_model_checkpoints=False):
-	datagen = ImageDataGenerator(
-    	#featurewise_center=True,
-	    #featurewise_std_normalization=True,
-	    rotation_range=10,
-	    #width_shift_range=0.2,
-	    #height_shift_range=0.2,
-	    horizontal_flip=True
-	)
-	datagen.fit(x_train) # Returns a generator which returns a tuple (x_batch, y_batch) where y_batch is 
-	realimage_generator = datagen.flow(x_train, y_train, batch_size=len(x_train)) # Use this to generate "real" images. (Data augmentation)
+	d_input = Input(shape=(64,64,3))
+	H = Convolution2D(64, 5, 5, subsample=(2, 2), border_mode = 'same')(d_input)
+	H = LeakyReLU(0.2)(H)
+	H = Dropout(0.1)(H)
+	H = Convolution2D(128, 5, 5, subsample=(2, 2), border_mode = 'same')(H)
+	H = LeakyReLU(0.2)(H)
+	H = Dropout(0.1)(H)
+	H = Flatten()(H)
+	H = Dense(256)(H)
+	H = LeakyReLU(0.2)(H)
+	H = Dropout(0.1)(H)
+	d_V = Dense(2,activation='softmax')(H)
+	discriminator = Model(d_input, d_V)
+	discriminator.compile(loss='binary_crossentropy', optimizer=dopt)
+	print("Discriminator output: {}".format(discriminator.output_shape))
 
-	for e in tqdm(range(nb_epoch)):
-		#image_batch = x_train[np.random.randint(0, len(x_train), size=batch_size),:,:,:] 
-
-		real_generated_images = realimage_generator.next()[0]
-		image_batch = real_generated_images[np.random.randint(0, len(real_generated_images), size=batch_size),:,:,:]
-
-		noise_gen = np.random.uniform(0,1, size=(batch_size, 100))
-		generated_images = generator.predict(noise_gen)
 		
+	set_trainable(discriminator, False)
 
-		# Train the discriminator
-		x = np.concatenate((image_batch, generated_images))
-		y = np.zeros((2*batch_size, 2))
-		y[0:batch_size,1] = 1
-		y[batch_size:,0] = 1
+	# Build stacked GAN model
+	gan_input = Input(shape=[100])
+	H = generator(gan_input)
+	gan_V = discriminator(H)
+	GAN = Model(gan_input, gan_V)
+	GAN.compile(loss='categorical_crossentropy', optimizer=opt)
 
-		make_trainable(discriminator, True)
-		d_loss = discriminator.train_on_batch(x,y)
-		losses['discriminator'].append(d_loss) # Add losses to list
-
-		# Train Generator-Discriminator stack on input noise to non-generated output class
-		noise_tr = np.random.uniform(0,1,size=(batch_size,100))
-		y2 = np.zeros((batch_size,2))
-		y2[:,1] = 1
-
-		make_trainable(discriminator, False) # Discriminator doesnt get trained whilst training the generator
-
-		g_loss = GAN.train_on_batch(noise_tr, y2)
-		losses['gan'].append(g_loss) # Add losses to list
-	
-		if e % save_frequency == 0 and e != 0:
-			save_epoch(e, save_model_checkpoints)
-
-	save_epoch(e, include_model=True)
-
-if not args.batch_size and not args.batch_size.is_digit():
-	bs = 50
-	logging.info("Batch size not specified, using default of {}".format(bs))
-else:
-	logging.info("Batch size {} was specified in arguments".format(args.batch_size))
-	bs = int(args.batch_size)
-
-logging.info("Saving summaries as txt")
-with open('{}/summaries.txt'.format(save_dir),'w') as sumfile:
-	sys.stdout = sumfile
-	print("----GAN SUMMARY----")
-	GAN.summary()
-	print("----discriminator SUMMARY----")
-	discriminator.summary()
-	print("----generator SUMMARY----")
-	generator.summary()
-	sys.stdout = sys.__stdout__
+	def save_gen(number=16):
+		noise = np.random.uniform(0,1,size=[number, 100])
+		generated_images = generator.predict(noise)
+		
+		for index,img in enumerate(generated_images):
+			imgpath = "{}/{}_{:06d}.jpg".format(save_path, imgname, index)
+			cv2.imwrite(imgpath,img)
 
 
-train_gan(nb_epoch=200000, batch_size=bs, save_frequency=1000)
+	# Pretrain discriminator
+	noise = np.random.uniform(0,1, size=[len(x_class), 100])
+	generated_images = generator.predict(noise)
+	X = np.concatenate((x_class, generated_images))
+	n = len(x_class)
+	y = np.zeros(shape=(2*n,2))
 
-#opt.lr = K.variable(1e-6)
-#dopt.lr = K.variable(1e-5)
-#train_gan(nb_epoch=2000,batch_size=bs)
+	# Set class values (real or generated image)
+	y[:n,1] = 1
+	y[n:,0] = 1
 
-#opt.lr = K.variable(1e-6)
-#dopt.lr = K.variable(1e-5)
-#train_gan(nb_epoch=2000,batch_size=10)
+	# Shuffle data
+	equal_shuffle(X,y)
+	set_trainable(discriminator, True)
+	discriminator.fit(X,y, nb_epoch=1, batch_size=7)
+	y_hat = discriminator.predict(X)
 
-# Save generated images
+
+	# Measure accuracy of pre-trained discriminator
+	y_hat_idx = np.argmax(y_hat, axis=1)
+	y_idx = np.argmax(y, axis=1)
+	diff = y_idx-y_hat_idx
+	n_total = len(y)
+	n_correct = (diff==0).sum()
+	accuracy = n_correct*100.0/n_total
+
+	logging.info("Accuracy: {:.2f}% ({} of {}) correct".format(accuracy, n_correct, n_total))
+
+	def save_epoch(cur_epoch, include_model=False, separate_images=False):
+		noise_gen = np.random.uniform(0,1, size=(30, 100))
+		images = generator.predict(noise_gen)
+		images*=255
+		images = images.astype('int')
+
+		logging.info("Saving generated images")
+		classname = "_".join(selected_class.split())
+		create_collage(images, path='{}/{}_{}.jpg'.format(save_dir, cur_epoch, classname))
+		if separate_images:
+			# Save images in separate folder
+			logging.info("Saving images in separate folder")
+			for index, img in enumerate(images):
+				cv2.imwrite('{}/{}_{}.jpg'.format(class_dir, classname, index), img)
+		
+		if include_model:
+			logging.info("Saving models to model folder")
+			GAN.save("{}/{}_{}_GAN_model.h5".format(class_dir, classname, cur_epoch))
+			discriminator.save("{}/{}_{}_discriminator_model.h5".format(class_dir, classname, cur_epoch))
+			generator.save("{}/{}_{}_generator_model.h5".format(class_dir, classname, cur_epoch))
 
 
-logging.info("Save losses to file")
-loss_keys = list(losses.keys())
-losslists = [losses[l] for l in loss_keys]
-csvpath = "{}/{}".format(save_dir, "losses.txt")
-with open(csvpath, 'w') as loss_file:
-	header_string = "epoch"
-	for k in loss_keys:
-		header_string += ",%s" % k
-	loss_file.write("{}\n".format(header_string))
+	losses = {'discriminator':[], 'gan':[]}
+	# Create training function
+	def train_gan(nb_epoch=5000, batch_size=10, save_frequency=1000, save_model_checkpoints=False):
+		datagen = ImageDataGenerator(
+			#featurewise_center=True,
+			#featurewise_std_normalization=True,
+			rotation_range=10,
+			#width_shift_range=0.2,
+			#height_shift_range=0.2,
+			horizontal_flip=True
+		)
+		datagen.fit(x_class) # Returns a generator which returns a tuple (x_batch, y_batch) where y_batch is 
+		realimage_generator = datagen.flow(x_class, y_class, batch_size=len(x_class)) # Use this to generate "real" images. (Data augmentation)
+		progressbar = trange(nb_epoch, desc="{} ({}/{})".format(selected_class, class_index+1, nb_classes), leave=True)
+		for e in progressbar:
+			#image_batch = x_class[np.random.randint(0, len(x_class), size=batch_size),:,:,:] 
 
-	for epoch, loss_vals in enumerate(zip(*losslists)):
-		line = "{}".format(epoch+1)
-		for l in loss_vals:
-			line += ",{}".format(l)
+			real_generated_images = realimage_generator.next()[0]
+			image_batch = real_generated_images[np.random.randint(0, len(real_generated_images), size=batch_size),:,:,:]
 
-		loss_file.write("{}\n".format(line))
+			noise_gen = np.random.uniform(0,1, size=(batch_size, 100))
+			generated_images = generator.predict(noise_gen)
+			
 
-plot_csv(csvpath)
+			# Train the discriminator
+			x = np.concatenate((image_batch, generated_images))
+			y = np.zeros((2*batch_size, 2))
+			y[0:batch_size,1] = 1
+			y[batch_size:,0] = 1
+
+			set_trainable(discriminator, True)
+			d_loss = discriminator.train_on_batch(x,y)
+			losses['discriminator'].append(d_loss) # Add losses to list
+
+			# Train Generator-Discriminator stack on input noise to non-generated output class
+			noise_tr = np.random.uniform(0,1,size=(batch_size,100))
+			y2 = np.zeros((batch_size,2))
+			y2[:,1] = 1
+
+			set_trainable(discriminator, False) # Discriminator doesnt get trained whilst training the generator
+
+			g_loss = GAN.train_on_batch(noise_tr, y2)
+			losses['gan'].append(g_loss) # Add losses to list
+		
+			if e % save_frequency == 0 and e != 0 and save_frequency != -1:
+				save_epoch(e, save_model_checkpoints)
+
+		save_epoch(e, include_model=True)
+
+	if not args.batch_size and not args.batch_size.is_digit():
+		bs = 50
+		logging.info("Batch size not specified, using default of {}".format(bs))
+	else:
+		logging.info("Batch size {} was specified in arguments".format(args.batch_size))
+		bs = int(args.batch_size)
+
+	logging.info("Saving summaries as txt")
+	with open('{}/summaries.txt'.format(save_dir),'w') as sumfile:
+		sys.stdout = sumfile
+		print("----GAN SUMMARY----")
+		GAN.summary()
+		print("----discriminator SUMMARY----")
+		discriminator.summary()
+		print("----generator SUMMARY----")
+		generator.summary()
+		sys.stdout = sys.__stdout__
+
+
+	train_gan(nb_epoch=50000, batch_size=bs, save_frequency=-1)
+
+	#opt.lr = K.variable(1e-6)
+	#dopt.lr = K.variable(1e-5)
+	#train_gan(nb_epoch=2000,batch_size=bs)
+
+	#opt.lr = K.variable(1e-6)
+	#dopt.lr = K.variable(1e-5)
+	#train_gan(nb_epoch=2000,batch_size=10)
+
+	# Save generated images
+
+
+	logging.info("Save losses to file")
+	loss_keys = list(losses.keys())
+	losslists = [losses[l] for l in loss_keys]
+	csvpath = "{}/{}".format(class_dir, "losses.txt")
+	with open(csvpath, 'w') as loss_file:
+		header_string = "epoch"
+		for k in loss_keys:
+			header_string += ",%s" % k
+		loss_file.write("{}\n".format(header_string))
+
+		for epoch, loss_vals in enumerate(zip(*losslists)):
+			line = "{}".format(epoch+1)
+			for l in loss_vals:
+				line += ",{}".format(l)
+
+			loss_file.write("{}\n".format(line))
+
+	plot_csv(csvpath)
