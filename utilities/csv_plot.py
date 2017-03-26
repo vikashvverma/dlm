@@ -31,7 +31,7 @@ def plot_csv(csvpath, plotoutput=None):
 			data_dict.setdefault(headers[index], []).append(val)
 
 	x = data_dict[headers[0]]
-
+	plt.clf()
 	for k,v in data_dict.items():
 		if k != headers[0]:
 			#print('{}: {}'.format(k,v))
