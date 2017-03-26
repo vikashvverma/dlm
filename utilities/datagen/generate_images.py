@@ -1,5 +1,6 @@
 # Generate images from celebrities from original looking images
 from dlm.utilities.data_handler import get_imdb_data, split_data, get_data, get_classless_images, equal_shuffle
+from dlm.utilities.multi_gpu import make_parallel
 from dlm.utilities.csv_plot import plot_csv
 import argparse
 import logging
@@ -13,6 +14,7 @@ import sys
 from keras.utils import np_utils
 from tqdm import tqdm, trange
 import numpy as np
+from keras import backend as K
 from keras.utils import np_utils
 import keras.models as models
 from keras.layers import Input,merge
@@ -35,6 +37,10 @@ import random
 np.random.seed(2000)
 random.seed(2000)
 
+"""server = K.tf.train.Server.create_local_server()
+sess = K.tf.Session(server.target)
+K.set_session(sess)
+"""
 parser = argparse.ArgumentParser(description="Generate images with neural networks")
 parser.add_argument("-b", "--batch-size", help="specify batch size")
 parser.add_argument("-v", "--verbosity", action="count", help="Increase output verbosity (Can be specified multiple times for more verbosity)", default=0)
@@ -129,69 +135,75 @@ for class_index, selected_class in enumerate(data_dict_x):
 	opt = Adam(lr=1e-5, decay=1e-14)
 	dopt = Adam(lr=1e-4, decay=1e-14)
 
-	# Build the generator model
-	g_input = Input(shape=[100])
+	with K.tf.device('/gpu:1'):
+		# Build the generator model
+		g_input = Input(shape=[100])
 
-	H = Dense(64*64*3)(g_input)
-	H = BatchNormalization(mode=2)(H)
-	H = Activation('relu')(H)
-	H = LeakyReLU(0.2)(H)
+		H = Dense(64*64*3)(g_input)
+		H = BatchNormalization(mode=2)(H)
+		H = Activation('relu')(H)
+		H = LeakyReLU(0.2)(H)
 
-	H = Reshape( [64, 64, 3] )(H)
-	#H = UpSampling2D(size=(2,2))(H)
+		H = Reshape( [64, 64, 3] )(H)
+		#H = UpSampling2D(size=(2,2))(H)
 
-	H = Convolution2D(64, 3, 3, border_mode='same')(H)
-	H = BatchNormalization(mode=2)(H)
-	H = Activation('relu')(H)
-	H = LeakyReLU(0.2)(H)
+		H = Convolution2D(64, 3, 3, border_mode='same')(H)
+		H = BatchNormalization(mode=2)(H)
+		H = Activation('relu')(H)
+		H = LeakyReLU(0.2)(H)
 
-	H = Convolution2D(128, 3, 3, border_mode='same')(H)
-	H = BatchNormalization(mode=2)(H)
-	H = Activation('relu')(H)
-	H = LeakyReLU(0.2)(H)
+		H = Convolution2D(128, 3, 3, border_mode='same')(H)
+		H = BatchNormalization(mode=2)(H)
+		H = Activation('relu')(H)
+		H = LeakyReLU(0.2)(H)
 
-	#H = Convolution2D(256, 3, 3, border_mode='same')(H)
-	#H = BatchNormalization(mode=2)(H)
-	#H = Activation('relu')(H)
-	#H = LeakyReLU(0.2)(H)
+		#H = Convolution2D(256, 3, 3, border_mode='same')(H)
+		#H = BatchNormalization(mode=2)(H)
+		#H = Activation('relu')(H)
+		#H = LeakyReLU(0.2)(H)
 
-	#H = Convolution2D(512, 3, 3, border_mode='same')(H)
-	#H = BatchNormalization(mode=2)(H)
-	#H = Activation('relu')(H)
-	#H = LeakyReLU(0.2)(H)
+		#H = Convolution2D(512, 3, 3, border_mode='same')(H)
+		#H = BatchNormalization(mode=2)(H)
+		#H = Activation('relu')(H)
+		#H = LeakyReLU(0.2)(H)
 
-	H = Deconvolution2D(3, 3, 3, border_mode='same', output_shape=(None, 64,64, 3))(H)
-	g_V = Activation('sigmoid')(H)
-	generator = Model(g_input, g_V)
-	generator.compile(loss='binary_crossentropy', optimizer=opt)
+		H = Deconvolution2D(3, 3, 3, border_mode='same', output_shape=(None, 64,64, 3))(H)
+		g_V = Activation('sigmoid')(H)
+		generator = Model(g_input, g_V)
+		generator.compile(loss='binary_crossentropy', optimizer=opt)
 	print("Generator output: {}".format(generator.output_shape))
 
 
-	d_input = Input(shape=(64,64,3))
-	H = Convolution2D(64, 5, 5, subsample=(2, 2), border_mode = 'same')(d_input)
-	H = LeakyReLU(0.2)(H)
-	H = Dropout(0.1)(H)
-	H = Convolution2D(128, 5, 5, subsample=(2, 2), border_mode = 'same')(H)
-	H = LeakyReLU(0.2)(H)
-	H = Dropout(0.1)(H)
-	H = Flatten()(H)
-	H = Dense(256)(H)
-	H = LeakyReLU(0.2)(H)
-	H = Dropout(0.1)(H)
-	d_V = Dense(2,activation='softmax')(H)
-	discriminator = Model(d_input, d_V)
-	discriminator.compile(loss='binary_crossentropy', optimizer=dopt)
+	with K.tf.device('/gpu:1'):
+		d_input = Input(shape=(64,64,3))
+		H = Convolution2D(64, 5, 5, subsample=(2, 2), border_mode = 'same')(d_input)
+		H = LeakyReLU(0.2)(H)
+		H = Dropout(0.1)(H)
+		H = Convolution2D(128, 5, 5, subsample=(2, 2), border_mode = 'same')(H)
+		H = LeakyReLU(0.2)(H)
+		H = Dropout(0.1)(H)
+		H = Flatten()(H)
+		H = Dense(256)(H)
+		H = LeakyReLU(0.2)(H)
+		H = Dropout(0.1)(H)
+		d_V = Dense(2,activation='softmax')(H)
+		discriminator = Model(d_input, d_V)
+		discriminator.compile(loss='binary_crossentropy', optimizer=dopt)
 	print("Discriminator output: {}".format(discriminator.output_shape))
-
-		
+	
+			
 	set_trainable(discriminator, False)
 
-	# Build stacked GAN model
-	gan_input = Input(shape=[100])
-	H = generator(gan_input)
-	gan_V = discriminator(H)
-	GAN = Model(gan_input, gan_V)
-	GAN.compile(loss='categorical_crossentropy', optimizer=opt)
+	with K.tf.device('/gpu:1'):
+		# Build stacked GAN model
+		gan_input = Input(shape=[100])
+		H = generator(gan_input)
+		gan_V = discriminator(H)
+		GAN = Model(gan_input, gan_V)
+		#GAN = make_parallel(GAN, 2) Multigpu stuff
+		GAN.compile(loss='categorical_crossentropy', optimizer=opt)
+	
+	
 
 	def save_gen(number=16):
 		noise = np.random.uniform(0,1,size=[number, 100])
@@ -283,7 +295,8 @@ for class_index, selected_class in enumerate(data_dict_x):
 			y[batch_size:,0] = 1
 
 			set_trainable(discriminator, True)
-			d_loss = discriminator.train_on_batch(x,y)
+			with K.tf.device('/gpu:1'):
+				d_loss = discriminator.train_on_batch(x,y)
 			losses['discriminator'].append(d_loss) # Add losses to list
 
 			# Train Generator-Discriminator stack on input noise to non-generated output class
@@ -292,8 +305,8 @@ for class_index, selected_class in enumerate(data_dict_x):
 			y2[:,1] = 1
 
 			set_trainable(discriminator, False) # Discriminator doesnt get trained whilst training the generator
-
-			g_loss = GAN.train_on_batch(noise_tr, y2)
+			with K.tf.device('/gpu:1'):
+				g_loss = GAN.train_on_batch(noise_tr, y2)
 			losses['gan'].append(g_loss) # Add losses to list
 		
 			if e % save_frequency == 0 and e != 0 and save_frequency != -1:
