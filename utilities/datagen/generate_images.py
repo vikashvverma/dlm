@@ -44,6 +44,7 @@ K.set_session(sess)
 parser = argparse.ArgumentParser(description="Generate images with neural networks")
 parser.add_argument("-b", "--batch-size", help="specify batch size")
 parser.add_argument("-v", "--verbosity", action="count", help="Increase output verbosity (Can be specified multiple times for more verbosity)", default=0)
+parser.add_argument("-s", "--skipto", help="Skip to the specified index (starting with 0)")
 args = parser.parse_args()
 loglevel = logging.ERROR
 
@@ -60,6 +61,11 @@ gan_data_path = "data/gan_data/models"
 date_str = time.strftime("%d-%m-%Y_%H-%M-%S")
 save_dir = "{}/{}".format(gan_data_path, date_str)
 os.makedirs(save_dir, exist_ok=True)
+
+if not args.skipto:
+	skip_to_index = -1
+else:
+	skip_to_index = args.skipto
 
 def create_collage(images, path='collage.jpg'):
 	N = len(images)
@@ -126,6 +132,10 @@ for dict_class in data_dict_x:
 #(x_train, x_test), (y_train, y_test) = split_data(sx, cat_y, ratio=0.90)
 
 for class_index, selected_class in enumerate(data_dict_x):
+
+	if class_index < skip_to_index:
+		continue
+
 	class_dir = os.path.join(save_dir, "_".join(selected_class.split()))
 	os.makedirs(class_dir)
 	x_class = data_dict_x[selected_class]
