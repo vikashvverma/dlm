@@ -32,15 +32,12 @@ from keras.optimizers import *
 from keras.models import Model
 from collections import OrderedDict
 import random
+import operator
 
 # Reproducibility 
 np.random.seed(2000)
 random.seed(2000)
 
-"""server = K.tf.train.Server.create_local_server()
-sess = K.tf.Session(server.target)
-K.set_session(sess)
-"""
 parser = argparse.ArgumentParser(description="Generate images with neural networks")
 parser.add_argument("-b", "--batch-size", help="specify batch size")
 parser.add_argument("-v", "--verbosity", action="count", help="Increase output verbosity (Can be specified multiple times for more verbosity)", default=0)
@@ -129,9 +126,13 @@ for dict_class in data_dict_x:
 	data_dict_x[dict_class] = np.array(data_dict_x[dict_class])
 	data_dict_y[dict_class] = np.array(data_dict_y[dict_class])
 
+
 #(x_train, x_test), (y_train, y_test) = split_data(sx, cat_y, ratio=0.90)
 
-for class_index, selected_class in enumerate(data_dict_x):
+sortedclasses = [classname for (classname, classlist) in sorted(data_dict_x.items(), key=lambda x: len(x[1]), reverse=True)] # Returns a list of classnames sorted by number of samples
+
+
+for class_index, selected_class in enumerate(sortedclasses):
 
 	if class_index < skip_to_index:
 		continue
@@ -338,7 +339,6 @@ for class_index, selected_class in enumerate(data_dict_x):
 		print("----generator SUMMARY----")
 		generator.summary()
 		sys.stdout = sys.__stdout__
-
 
 	train_gan(nb_epoch=50000, batch_size=bs, save_frequency=-1)
 
