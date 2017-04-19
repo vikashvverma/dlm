@@ -71,11 +71,12 @@ for idx,cf in enumerate(class_folders):
 			shutil.rmtree(class_outpath)
 		logging.info("Creating output path: {}...".format(class_outpath))
 		os.makedirs(class_outpath)
-			
 
 		logging.info("Loading model {}".format(model_path))
 		generator_model = load_model(os.path.join(cf,model_path))
 		
 		logging.info("Generating {} images with {}...".format(num_images, os.path.join(cf,model_path)))
-		# TODO: decide how images should be stored and simply do generator_model.predict(randomnoise)
-		import pdb;pdb.set_trace()
+		noise = np.random.uniform(0,1, size=[num_images, 100])
+		generated_images = generator_model.predict(noise)
+		for imageidx,img in enumerate(generated_images):
+			cv2.imwrite('{}/{}_{:04d}.jpg'.format(class_outpath, classname, imageidx), img)
