@@ -25,6 +25,7 @@ if __name__ == '__main__':
 	parser.add_argument("-i", "--hostname", help="MongoDB Hostname")
 	parser.add_argument("-p", "--port", help="MongoDB Port")
 	parser.add_argument("-r", "--reload-data", action="store_true", help="Reload data even if pickle file exists")
+	parser.add_argument("-n", "--include-ng-classes", action="store_true", help="Include classes that have no generated images")
 	args = parser.parse_args()
 	loglevel = logging.ERROR
 	if args.verbosity == 1:
@@ -49,6 +50,14 @@ if __name__ == '__main__':
 	else:
 		port = int(args.port)
 		logging.info("Port specified, using {}".format(port))
+
+	def show_image(index):
+		cv2.imshow(y[index], x[index])
+		cv2.waitKey(0)
+		cv2.destroyAllWindows()
+
+	"""
+	# Load data via mongodb and such
 	pickle_loc = "data/tmp_data.pkl"
 	if os.path.exists(pickle_loc) and not args.reload_data:
 		logging.info("Loading pickle file")
@@ -64,6 +73,7 @@ if __name__ == '__main__':
 		with open(pickle_loc, 'wb') as pkl:
 			pickle.dump((x,y), pkl)
 	
+
 	logging.info("Data loaded")
 
 	logging.info("Shuffling all the data")
@@ -77,21 +87,58 @@ if __name__ == '__main__':
 	np.random.shuffle(y)
 
 	logging.info("Classes to arrays")
-	input_shape = x[0].shape
-	classes = set(y)
-	nb_classes = len(classes)
 
-	def show_image(index):
-		cv2.imshow(y[index], x[index])
-		cv2.waitKey(0)
-		cv2.destroyAllWindows()
 
 	logging.info("Categorizes output data")
 	uniques, ids = np.unique(y, return_inverse=True)
 	cat_y = np_utils.to_categorical(ids, len(uniques))
 	(x_train, x_test), (y_train, y_test) = split_data(x, cat_y)
+	"""
+	# Load LFW data incl. GAN generated images
+	logging.info("Loading training data...")
+	x_train,c_train = get_data(path='data/lfw/lfw_split_cropped/train/',resize=(64,64))
+	logging.info("Loading testing data...")
+	x_test,c_test = get_data(path='data/lfw/lfw_split_cropped/test/',resize=(64,64))
+	logging.info("Loading generated data...")
+	x_gen,c_gen = get_data(path='data/lfw/lfw_split_cropped/gangen/',resize=(64,64))
+
+	if not args.include_ng_classes:
+		logging.info("Recreating data lists but only including classes that has generated images.")
+
+		tmp_xtrain,tmp_ctrain = [],[]
+		for i in range(len(x_train)):
+			if c_train[i] in c_gen:
+				tmp_xtrain.append(x_train[i])
+				tmp_ctrain.append(c_train[i])
+		x_train = np.array(tmp_xtrain)
+		c_train = np.array(tmp_ctrain)
+
+		tmp_xtest,tmp_ctest = [],[]
+		for i in range(len(x_test)):
+			if c_test[i] in c_gen:
+				tmp_xtest.append(x_test[i])
+				tmp_ctest.append(c_test[i])
+		x_test = np.array(tmp_xtest)
+		c_test = np.array(tmp_ctest)
 	
+	uniques, ids = np.unique(c_train, return_inverse=True)
+	y_train = np_utils.to_categorical(ids, len(uniques))
+
+	uniques, ids = np.unique(c_test, return_inverse=True)
+	y_test = np_utils.to_categorical(ids, len(uniques))
+
+	uniques, ids = np.unique(c_gen, return_inverse=True)
+	y_gen = np_utils.to_categorical(ids, len(uniques))
+
+
+	# Define some variables for easier use
+	input_shape = x_train.shape[1:]
+	classes = (set(c_train)|set(c_test)|set(c_gen))
+	nb_classes = len(classes)
 	logging.info("Building model")
+
+	import pdb;pdb.set_trace()
+	
 	"""
 	MODEL HERE
 	"""
