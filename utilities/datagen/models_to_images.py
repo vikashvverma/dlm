@@ -78,5 +78,6 @@ for idx,cf in enumerate(class_folders):
 		logging.info("Generating {} images with {}...".format(num_images, os.path.join(cf,model_path)))
 		noise = np.random.uniform(0,1, size=[num_images, 100])
 		generated_images = generator_model.predict(noise)
+		generated_images *= 255
 		for imageidx,img in enumerate(generated_images):
-			cv2.imwrite('{}/{}_{:04d}.jpg'.format(class_outpath, classname, imageidx), img)
+			cv2.imwrite('{}/{}_{:04d}.jpg'.format(class_outpath, classname, imageidx), img.astype('int'))

@@ -4,7 +4,7 @@ from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.models import Sequential
 from keras.utils import np_utils
 from utilities.data_handler import get_imdb_data, split_data, get_data
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 import argparse
 import logging
 import numpy as np
@@ -94,20 +94,27 @@ if __name__ == '__main__':
 	cat_y = np_utils.to_categorical(ids, len(uniques))
 	(x_train, x_test), (y_train, y_test) = split_data(x, cat_y)
 	"""
-	# Load LFW data incl. GAN generated images
+
+
+
+	# Load LFW data
 	logging.info("Loading training data...")
 	x_train,c_train = get_data(path='data/lfw/lfw_split_cropped/train/',resize=(64,64))
 	logging.info("Loading testing data...")
 	x_test,c_test = get_data(path='data/lfw/lfw_split_cropped/test/',resize=(64,64))
-	logging.info("Loading generated data...")
-	x_gen,c_gen = get_data(path='data/lfw/lfw_split_cropped/gangen/',resize=(64,64))
+	#logging.info("Loading generated data...")
+	#x_gen,c_gen = get_data(path='data/lfw/lfw_split_cropped/gangen/',resize=(64,64))
 
+
+	gan_classes = os.listdir('data/lfw/lfw_split_cropped/gangen/')
+	gan_classes = [" ".join(c.split('_')) for c in gan_classes]
+	
 	if not args.include_ng_classes:
 		logging.info("Recreating data lists but only including classes that has generated images.")
 
 		tmp_xtrain,tmp_ctrain = [],[]
 		for i in range(len(x_train)):
-			if c_train[i] in c_gen:
+			if c_train[i] in gan_classes:
 				tmp_xtrain.append(x_train[i])
 				tmp_ctrain.append(c_train[i])
 		x_train = np.array(tmp_xtrain)
@@ -115,29 +122,78 @@ if __name__ == '__main__':
 
 		tmp_xtest,tmp_ctest = [],[]
 		for i in range(len(x_test)):
-			if c_test[i] in c_gen:
+			if c_test[i] in gan_classes:
 				tmp_xtest.append(x_test[i])
 				tmp_ctest.append(c_test[i])
 		x_test = np.array(tmp_xtest)
 		c_test = np.array(tmp_ctest)
 	
 	uniques, ids = np.unique(c_train, return_inverse=True)
-	y_train = np_utils.to_categorical(ids, len(uniques))
 
-	uniques, ids = np.unique(c_test, return_inverse=True)
-	y_test = np_utils.to_categorical(ids, len(uniques))
+	train_uniques, train_ids = np.unique(c_train, return_inverse=True)
+	y_train = np_utils.to_categorical(train_ids, len(train_uniques))
+	
 
-	uniques, ids = np.unique(c_gen, return_inverse=True)
-	y_gen = np_utils.to_categorical(ids, len(uniques))
+	test_uniques, test_ids = np.unique(c_test, return_inverse=True)
+	y_test = np_utils.to_categorical(test_ids, len(test_uniques))
 
+	#uniques, ids = np.unique(c_gen, return_inverse=True)
+	#y_gen = np_utils.to_categorical(ids, len(uniques))
+
+	def get_classname(idx):
+		return uniques[idx]
+
+	def get_classvector(classname):
+		idx = get_classidx(classname)
+		vec = np.zeros(len(uniques))
+		vec[idx] = 1
+		return vec
+
+	def get_classidx(classname):
+		classname = " ".join(classname.split('_'))
+		return np.where(classname==uniques)[0][0]
+		
+
+	def ganbatch_generator(samples_per_epoch=50000, path='data/lfw/lfw_split_cropped/gangen/'):
+		# Generator functions that returns [(images, class)]
+		classes = os.listdir(path)
+		files_by_class = defaultdict(list)
+		logging.info("Initializing generator for {} classes from {}".format(len(classes), path))
+		for selected_class in classes:
+			class_dir = os.path.join(path, selected_class)
+			for imgpath in os.listdir(class_dir):
+				files_by_class[selected_class].append(os.path.join(class_dir,imgpath))
+			
+		
+		nb_samples = samples_per_epoch / len(files_by_class) # number of samples pr class each epoch
+		max_epochs = int(sum([len(files_by_class[k]) for k in files_by_class]) / samples_per_epoch)
+		logging.info("Generator initialized, ready to generate next batch...")
+		for e in range(max_epochs):
+			logging.info("Generator function loading images from epoch {} to memory".format(e))
+			image_paths = []
+			images = []
+			fidx = int(e*nb_samples)
+			tidx = int(fidx+nb_samples)
+			for selected_class in files_by_class:
+				class_vector_idx = np.where(uniques==" ".join(selected_class.split('_')))[0][0]
+				class_vector = np.zeros(len(files_by_class))
+				class_vector[class_vector_idx] = 1
+
+				image_paths.append((files_by_class[selected_class][fidx:tidx],class_vector))
+
+			for img_path_list,img_class in image_paths:
+				for img_path in img_path_list:
+					images.append((cv2.imread(img_path), img_class))
+
+			yield np.array(images)
 
 	# Define some variables for easier use
 	input_shape = x_train.shape[1:]
-	classes = (set(c_train)|set(c_test)|set(c_gen))
+	classes = (set(c_train)|set(c_test)|set(gan_classes))
 	nb_classes = len(classes)
 	logging.info("Building model")
 
-	import pdb;pdb.set_trace()
+	#TODO: Probably add some shuffle
 	
 	"""
 	MODEL HERE
@@ -200,10 +256,17 @@ if __name__ == '__main__':
 	)
 	datagen.fit(x_train)
 
-	model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=50000, nb_epoch=300)
-	#model.fit(x_train, y_train, batch_size=50, nb_epoch=1000,verbose=1, validation_data=(x_test, y_test))
-	score = model.evaluate(x_test, y_test, verbose=0)
 
+
+			
+
+	gan_generator = ganbatch_generator(samples_per_epoch=50000)
+	model.fit_generator(gan_generator, samples_per_epoch=50000, nb_epoch=300, validation_data=(x_test, y_test)) # GAN images
+
+	#model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=50000, nb_epoch=300) # Data augmentation on normal images
+	#model.fit(x_train, y_train, batch_size=32, nb_epoch=300,verbose=1, validation_data=(x_test, y_test)) # Normal images, no generation
+
+	score = model.evaluate(x_test, y_test, verbose=0)
 	print('Test score:', score[0])
 	print('Test accuracy:', score[1])
 
