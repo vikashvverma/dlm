@@ -2,3 +2,5 @@ h5py
 pymongo
 tensorflow-gpu
 keras
+tqdm
+opencv-python
