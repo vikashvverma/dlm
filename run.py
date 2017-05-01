@@ -208,7 +208,7 @@ if __name__ == '__main__':
 	model.add(Convolution2D(nb_filter=32, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
 	model.add(Activation('relu'))
 
-	model.add(Dropout(0.1))
+	model.add(Dropout(0.2))
 	model.add(MaxPooling2D(pool_size=(2,2)))
 
 	model.add(Convolution2D(nb_filter=64, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
@@ -220,21 +220,21 @@ if __name__ == '__main__':
 
 	model.add(MaxPooling2D(pool_size=(2,2)))
 
-	#model.add(Convolution2D(nb_filter=128, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
-	#model.add(Activation('relu'))
-	#model.add(Convolution2D(nb_filter=128, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
-	#model.add(Activation('relu'))
-	#model.add(Convolution2D(nb_filter=128, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
-	#model.add(Activation('relu'))
+	model.add(Convolution2D(nb_filter=128, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
+	model.add(Activation('relu'))
+	model.add(Convolution2D(nb_filter=128, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
+	model.add(Activation('relu'))
+	model.add(Convolution2D(nb_filter=128, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
+	model.add(Activation('relu'))
 
-	model.add(Dropout(0.1))
+	model.add(Dropout(0.2))
 	
 	#model.add(MaxPooling2D(pool_size=(2,2)))
 
 	model.add(Flatten())
 	model.add(Dense(256))
 	model.add(Activation('relu'))
-	model.add(Dropout(0.1))
+	model.add(Dropout(0.2))
 
 	model.add(Dense(128))
 	model.add(Activation('relu'))
@@ -264,11 +264,11 @@ if __name__ == '__main__':
 	gan_generator = ganbatch_generator(samples_per_epoch=50000)
 	nb_epoch = 300
 	for e in range(nb_epoch):
-		logging.info("Epoch {}/{}".format(e, nb_epoch))
+		logging.info("Epoch {}/{}".format(e+1, nb_epoch))
 		genxtrain,genytrain = zip(*next(gan_generator))
 		genxtrain = np.array(genxtrain)
 		genytrain = np.array(genytrain)
-		model.fit(genxtrain, genytrain, batch_size=32, nb_epoch=1, verbose=1, validation_data=(x_test, y_test)) # GAN images
+		model.fit(genxtrain, genytrain, batch_size=32, nb_epoch=20, verbose=1, validation_data=(x_test, y_test)) # GAN images
 
 	#model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=50000, nb_epoch=300) # Data augmentation on normal images
 	#model.fit(x_train, y_train, batch_size=32, nb_epoch=300,verbose=1, validation_data=(x_test, y_test)) # Normal images, no generation

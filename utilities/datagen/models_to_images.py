@@ -29,6 +29,7 @@ parser.add_argument("path", help="Path to where hdf5 models are stored, in forma
 parser.add_argument("outputpath", help="Path to where classes should be output")
 parser.add_argument("-v", "--verbosity", action="count", help="Increase output verbosity (Can be specified multiple times for more verbosity)", default=0)
 parser.add_argument("-n", "--num-images", help="Number of images to generate for each class", type=int)
+parser.add_argument("-t", "--test-model", action="store_true", help="Test the discriminator model before loading the generator model, and skip it if the model only predicts a single value")
 #parser.add_argument("-s", "--skipto", help="Skip to the specified index (starting with 0)", type=int)
 args = parser.parse_args()
 loglevel = logging.ERROR
@@ -44,6 +45,13 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=loglevel)
 
 path = args.path
 outpath = args.outputpath
+
+logging.info("Loading original lfw data for testing purposes...")
+x_train,y_train = get_data(path='data/lfw/lfw_split_cropped/train/', resize=(64,64))
+x_test,y_test = get_data(path='data/lfw/lfw_split_cropped/test/', resize=(64,64))
+logging.info("Data loaded")
+x_train /= 255
+x_test /= 255
 
 if not args.num_images:
 	num_images = 100
@@ -62,7 +70,9 @@ class_names = [os.path.basename(x) for x in class_folders]
 
 for idx,cf in enumerate(class_folders):
 	model_path = fnmatch.filter(os.listdir(cf), "*generator_model.h5")
+	discriminator_model_path = fnmatch.filter(os.listdir(cf), "*discriminator_model.h5")
 	classname = class_names[idx]
+
 	if len(model_path) == 1:
 		model_path = model_path[0]
 		class_outpath = os.path.join(outpath,classname)
@@ -78,6 +88,51 @@ for idx,cf in enumerate(class_folders):
 		logging.info("Generating {} images with {}...".format(num_images, os.path.join(cf,model_path)))
 		noise = np.random.uniform(0,1, size=[num_images, 100])
 		generated_images = generator_model.predict(noise)
+
+		if len(discriminator_model_path) == 1 and args.test_model:
+			discriminator_model_path = discriminator_model_path[0]
+			# Test and skip if bad
+			logging.info("Loading discriminator model {}".format(discriminator_model_path))
+			discriminator_model = load_model(os.path.join(cf,discriminator_model_path))
+			real_images = []
+			cns = " ".join(classname.split('_'))
+			for img,imgclass in zip(x_train,y_train):
+				if imgclass == cns:
+					real_images.append(img)
+
+			real_images = np.array(real_images)
+			fake_generated_images = np.random.uniform(0,1, size=[len(real_images), 64,64,3])
+
+			X = np.concatenate((real_images, fake_generated_images))
+			n = len(real_images)
+			answers = np.zeros(shape=(2*n,2))
+
+			# Set class values (real or generated image)
+			answers[:n,1] = 1
+			answers[n:,0] = 1
+
+			predictions = discriminator_model.predict(X)
+
+			# Measure accuracy of pre-trained discriminator
+			predictions_idx = np.argmax(predictions, axis=1)
+			answers_idx = np.argmax(answers, axis=1)
+			diff = answers_idx-predictions_idx
+			n_total = len(answers)
+			n_correct = (diff==0).sum()
+			accuracy = n_correct*100.0/n_total
+
+			logging.info("Class {} Accuracy: {:.2f}% ({} of {}) correct".format(classname, accuracy, n_correct, n_total))
+			oo = np.ones(len(predictions))
+			zz = np.zeros(len(predictions))
+			if np.array_equal(zz, predictions_idx) or np.array_equal(oo, predictions_idx):
+				# Skip if predictions is all one class
+				logging.warn("Class {} is bugged, images will not be generated".format(classname))
+				continue
+			else:
+				logging.info("Class {} checks out, images will be generated".format(classname))
+
+		
+		logging.info("Saving images for {}...".format(classname))
 		generated_images *= 255
 		for imageidx,img in enumerate(generated_images):
 			cv2.imwrite('{}/{}_{:04d}.jpg'.format(class_outpath, classname, imageidx), img.astype('int'))

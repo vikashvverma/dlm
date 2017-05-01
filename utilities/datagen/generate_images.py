@@ -228,24 +228,23 @@ for class_index, selected_class in enumerate(sortedclasses):
 	generated_images = generator.predict(noise)
 	X = np.concatenate((x_class, generated_images))
 	n = len(x_class)
-	y = np.zeros(shape=(2*n,2))
+	answers = np.zeros(shape=(2*n,2))
 
 	# Set class values (real or generated image)
-	y[:n,1] = 1
-	y[n:,0] = 1
+	answers[:n,1] = 1
+	answers[n:,0] = 1
 
 	# Shuffle data
-	equal_shuffle(X,y)
+	equal_shuffle(X,answers)
 	set_trainable(discriminator, True)
-	discriminator.fit(X,y, nb_epoch=1, batch_size=7)
-	y_hat = discriminator.predict(X)
-
+	discriminator.fit(X,answers, nb_epoch=1, batch_size=7)
+	predictions = discriminator.predict(X)
 
 	# Measure accuracy of pre-trained discriminator
-	y_hat_idx = np.argmax(y_hat, axis=1)
-	y_idx = np.argmax(y, axis=1)
-	diff = y_idx-y_hat_idx
-	n_total = len(y)
+	predictions_idx = np.argmax(predictions, axis=1)
+	answers_idx = np.argmax(answers, axis=1)
+	diff = answers_idx-predictions_idx
+	n_total = len(answers)
 	n_correct = (diff==0).sum()
 	accuracy = n_correct*100.0/n_total
 
