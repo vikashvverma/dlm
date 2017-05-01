@@ -5,6 +5,7 @@ from keras.models import Sequential
 from keras.utils import np_utils
 from utilities.data_handler import get_imdb_data, split_data, get_data
 from collections import OrderedDict, defaultdict
+from tqdm import tqdm, trange
 import argparse
 import logging
 import numpy as np
@@ -261,7 +262,13 @@ if __name__ == '__main__':
 			
 
 	gan_generator = ganbatch_generator(samples_per_epoch=50000)
-	model.fit_generator(gan_generator, samples_per_epoch=50000, nb_epoch=300, validation_data=(x_test, y_test)) # GAN images
+	nb_epoch = 300
+	for e in range(nb_epoch):
+		logging.info("Epoch {}/{}".format(e, nb_epoch))
+		genxtrain,genytrain = zip(*next(gan_generator))
+		genxtrain = np.array(genxtrain)
+		genytrain = np.array(genytrain)
+		model.fit(genxtrain, genytrain, batch_size=32, nb_epoch=1, verbose=1, validation_data=(x_test, y_test)) # GAN images
 
 	#model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=50000, nb_epoch=300) # Data augmentation on normal images
 	#model.fit(x_train, y_train, batch_size=32, nb_epoch=300,verbose=1, validation_data=(x_test, y_test)) # Normal images, no generation
