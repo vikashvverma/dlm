@@ -265,10 +265,12 @@ if __name__ == '__main__':
 	nb_epoch = 300
 	for e in range(nb_epoch):
 		logging.info("Epoch {}/{}".format(e+1, nb_epoch))
-		genxtrain,genytrain = zip(*next(gan_generator))
-		genxtrain = np.array(genxtrain)
-		genytrain = np.array(genytrain)
-		model.fit(genxtrain, genytrain, batch_size=32, nb_epoch=20, verbose=1, validation_data=(x_test, y_test)) # GAN images
+		genx_train,geny_train = zip(*next(gan_generator))
+		genx_train = np.array(genx_train)
+		geny_train = np.array(geny_train)
+
+		import pdb;pdb.set_trace()
+		model.fit(genx_train, geny_train, batch_size=32, nb_epoch=20, verbose=1, validation_data=(x_test, y_test)) # GAN images
 
 	#model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=50000, nb_epoch=300) # Data augmentation on normal images
 	#model.fit(x_train, y_train, batch_size=32, nb_epoch=300,verbose=1, validation_data=(x_test, y_test)) # Normal images, no generation
@@ -292,6 +294,8 @@ if __name__ == '__main__':
 			sys.stdout = sumfile
 			print("x_train.shape: {}".format(x_train.shape))
 			print("y_train.shape: {}".format(y_train.shape))
+		
+		
 			model.summary()
 			sys.stdout = sys.__stdout__
 		if args.save_data:

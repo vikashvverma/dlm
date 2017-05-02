@@ -4,3 +4,4 @@ __pycache__/
 *.sublime-project
 *.sublime-project.sublime-workspace
 *.pyc
+failed_generation.txt
