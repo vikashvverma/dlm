@@ -1,6 +1,8 @@
 h5py
 pymongo
 tensorflow-gpu
-keras
+keras==1.2.1
 tqdm
+numpy
 opencv-python
+matplotlib
