@@ -86,8 +86,8 @@ for idx,cf in enumerate(class_folders):
 		generator_model = load_model(os.path.join(cf,model_path))
 		
 		logging.info("Generating {} images with {}...".format(num_images, os.path.join(cf,model_path)))
-		noise = np.random.uniform(0,1, size=[num_images, 100])
-		generated_images = generator_model.predict(noise)
+		#noise = np.random.uniform(0,1, size=[num_images, 100])
+		#generated_images = generator_model.predict(noise)
 
 		if len(discriminator_model_path) == 1 and args.test_model:
 			discriminator_model_path = discriminator_model_path[0]
@@ -101,7 +101,9 @@ for idx,cf in enumerate(class_folders):
 					real_images.append(img)
 
 			real_images = np.array(real_images)
-			fake_generated_images = np.random.uniform(0,1, size=[len(real_images), 64,64,3])
+			#fake_generated_images = np.random.uniform(0,1, size=[len(real_images), 64,64,3])
+			noise = np.random.uniform(0,1, size=[len(real_images), 100])
+			fake_generated_images = generator_model.predict(noise)
 
 			X = np.concatenate((real_images, fake_generated_images))
 			n = len(real_images)
@@ -127,9 +129,14 @@ for idx,cf in enumerate(class_folders):
 			if np.array_equal(zz, predictions_idx) or np.array_equal(oo, predictions_idx):
 				# Skip if predictions is all one class
 				logging.warn("Class {} is bugged, images will not be generated".format(classname))
+				with open('failed_generation.txt','a') as lf:
+					logging.info("Class {} Accuracy: {:.2f}% ({} of {}) correct".format(classname, accuracy, n_correct, n_total))
+					lf.write("Class {} Accuracy: {:.2f}% ({} of {}) correct\n".format(classname, accuracy, n_correct, n_total))
+
 				continue
 			else:
 				logging.info("Class {} checks out, images will be generated".format(classname))
+				continue
 
 		
 		logging.info("Saving images for {}...".format(classname))
