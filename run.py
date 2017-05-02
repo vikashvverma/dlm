@@ -2,6 +2,7 @@ from keras.layers import Convolution2D, MaxPooling2D
 from keras.preprocessing.image import ImageDataGenerator
 from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.models import Sequential
+from keras.callbacks import CSVLogger
 from keras.utils import np_utils
 from utilities.data_handler import get_imdb_data, split_data, get_data
 from collections import OrderedDict, defaultdict
@@ -21,7 +22,7 @@ np.random.seed(1337)
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description="Run neural networks")
 	parser.add_argument("-v", "--verbosity", action="count", help="Increase output verbosity (Can be specified multiple times for more verbosity)", default=0)
-	parser.add_argument("-d", "--dry-run", action="store_true", help="Dry run, wont modify any files")
+	#parser.add_argument("-d", "--dry-run", action="store_true", help="Dry run, wont modify any files")
 	parser.add_argument("-s", "--save-data", action="store_true", help="Save data as pickle to model folder")
 	parser.add_argument("-i", "--hostname", help="MongoDB Hostname")
 	parser.add_argument("-p", "--port", help="MongoDB Port")
@@ -218,6 +219,7 @@ if __name__ == '__main__':
 	model.add(Convolution2D(nb_filter=64, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
 	model.add(Activation('relu'))
 
+	model.add(Dropout(0.2))
 	model.add(MaxPooling2D(pool_size=(2,2)))
 
 	model.add(Convolution2D(nb_filter=128, nb_row=3, nb_col=3, subsample=(1,1), border_mode='same'))
@@ -228,8 +230,7 @@ if __name__ == '__main__':
 	model.add(Activation('relu'))
 
 	model.add(Dropout(0.2))
-	
-	#model.add(MaxPooling2D(pool_size=(2,2)))
+	model.add(MaxPooling2D(pool_size=(2,2)))
 
 	model.add(Flatten())
 	model.add(Dense(256))
@@ -245,6 +246,15 @@ if __name__ == '__main__':
 	
 	model.compile(loss='categorical_crossentropy', optimizer='adadelta', metrics=['accuracy'])
 
+	date_str = time.strftime("%d-%m-%Y_%H-%M-%S")
+	#name_str = "{}-acc:{:.2f}-loss:{:.4f}".format(date_str, score[1], score[0])
+	name_str = "{}".format(date_str)
+	model_folder = "data/models/{}".format(name_str)
+	logging.info("Creating model folder {}".format(model_folder))
+	os.makedirs(model_folder, exist_ok=True)
+
+	csv_logger = CSVLogger('{}/training.log'.format(model_folder))
+
 
 	datagen = ImageDataGenerator(
 		featurewise_center=False,
@@ -257,52 +267,49 @@ if __name__ == '__main__':
 	)
 	datagen.fit(x_train)
 
-
-
-			
-
-	gan_generator = ganbatch_generator(samples_per_epoch=50000)
+	plot_results = {}	
 	nb_epoch = 300
-	for e in range(nb_epoch):
-		logging.info("Epoch {}/{}".format(e+1, nb_epoch))
-		genx_train,geny_train = zip(*next(gan_generator))
-		genx_train = np.array(genx_train)
-		geny_train = np.array(geny_train)
 
-		import pdb;pdb.set_trace()
-		model.fit(genx_train, geny_train, batch_size=32, nb_epoch=20, verbose=1, validation_data=(x_test, y_test)) # GAN images
+	def train_with_gandata():
+		gan_generator = ganbatch_generator(samples_per_epoch=50000)
+		for e in range(nb_epoch):
+			logging.info("Epoch {}/{}".format(e+1, nb_epoch))
+			genx_train,geny_train = zip(*next(gan_generator))
+			genx_train = np.array(genx_train)
+			geny_train = np.array(geny_train)
 
-	#model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=50000, nb_epoch=300) # Data augmentation on normal images
-	#model.fit(x_train, y_train, batch_size=32, nb_epoch=300,verbose=1, validation_data=(x_test, y_test)) # Normal images, no generation
-
+			import pdb;pdb.set_trace()
+			model.fit(genx_train, geny_train, batch_size=32, nb_epoch=20, verbose=1, validation_data=(x_test, y_test), callbacks=[csv_logger]) # GAN images
+	# train_with_gandata()
+	model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=50000, nb_epoch=300, validation_data=(x_test, y_test), callbacks=[csv_logger]) # Data augmentation on normal images
+	#model.fit(x_train, y_train, batch_size=32, nb_epoch=300,verbose=1, validation_data=(x_test, y_test), callbacks=[csv_logger]) # Normal images, no generation
 	score = model.evaluate(x_test, y_test, verbose=0)
 	print('Test score:', score[0])
 	print('Test accuracy:', score[1])
 
-	if not args.dry_run:
-		date_str = time.strftime("%d-%m-%Y_%H-%M-%S")
-		name_str = "{}-acc:{:.2f}-loss:{:.4f}".format(date_str, score[1], score[0])
-		model_folder = "data/models/{}".format(name_str)
-		logging.info("Creating model folder {}".format(model_folder))
-		os.makedirs(model_folder, exist_ok=True)
+	#date_str = time.strftime("%d-%m-%Y_%H-%M-%S")
+	#name_str = "{}-acc:{:.2f}-loss:{:.4f}".format(date_str, score[1], score[0])
+	#model_folder = "data/models/{}".format(name_str)
+	#logging.info("Creating model folder {}".format(model_folder))
+	#os.makedirs(model_folder, exist_ok=True)
 
-		logging.info("Saving model as {}/model.h5".format(model_folder))
-		model.save("{}/model.h5".format(model_folder))
+	logging.info("Saving model as {}/model.h5".format(model_folder))
+	model.save("{}/model.h5".format(model_folder))
 
-		logging.info("Saving summary as txt")
-		with open('{}/summary.txt'.format(model_folder),'w') as sumfile:
-			sys.stdout = sumfile
-			print("x_train.shape: {}".format(x_train.shape))
-			print("y_train.shape: {}".format(y_train.shape))
-		
-		
-			model.summary()
-			sys.stdout = sys.__stdout__
-		if args.save_data:
-			logging.info("Saving data to pickle file because --save-data given")
-			pkl_data = {'x_train':x_train, 'x_test':x_test, 'y_train':y_train, 'y_test':y_test, 'uniques':uniques, 'ids':ids}
-			with open('{}/data.pkl'.format(model_folder), 'wb') as pkl:
-				pickle.dump(pkl_data, pkl)
+	logging.info("Saving summary as txt")
+	with open('{}/summary.txt'.format(model_folder),'w') as sumfile:
+		sys.stdout = sumfile
+		print("x_train.shape: {}".format(x_train.shape))
+		print("y_train.shape: {}".format(y_train.shape))
+	
+	
+		model.summary()
+		sys.stdout = sys.__stdout__
+	if args.save_data:
+		logging.info("Saving data to pickle file because --save-data given")
+		pkl_data = {'x_train':x_train, 'x_test':x_test, 'y_train':y_train, 'y_test':y_test, 'uniques':uniques, 'ids':ids}
+		with open('{}/data.pkl'.format(model_folder), 'wb') as pkl:
+			pickle.dump(pkl_data, pkl)
 
 
 
