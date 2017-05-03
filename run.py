@@ -141,6 +141,7 @@ if __name__ == '__main__':
 
 	#uniques, ids = np.unique(c_gen, return_inverse=True)
 	#y_gen = np_utils.to_categorical(ids, len(uniques))
+	equal_shuffle(x_train, y_train)
 
 	def get_classname(idx):
 		return uniques[idx]
@@ -156,8 +157,8 @@ if __name__ == '__main__':
 		return np.where(classname==uniques)[0][0]
 		
 
-	def ganbatch_generator(batch_size=32, path='data/lfw/lfw_split_cropped/gangen/'):
-		# Generator functions that returns [(images, class)]
+	def ganbatch_generator(batch_size=32, mix_real_data=False, path='data/lfw/lfw_split_cropped/gangen/'):
+		# Generator functions that returns ([images],[classes])
 		classes = os.listdir(path)
 		files_by_class = defaultdict(list)
 		image_paths = []
@@ -165,16 +166,24 @@ if __name__ == '__main__':
 		for selected_class in classes:
 			class_dir = os.path.join(path, selected_class)
 			for imgpath in os.listdir(class_dir):
-				#files_by_class[selected_class].append(os.path.join(class_dir,imgpath))
 				image_paths.append((os.path.join(class_dir,imgpath),selected_class))
 		
 		np.random.shuffle(image_paths)
+		
+		batch_idx = 0
+		effective_batch_size = batch_size / 2
+		batch_x, batch_y = [],[]
 		for imgidx, (imgpath, imgclass) in enumerate(image_paths):
-			if imgidx % batch_size == 0:
+			if len(batch_x) % batch_size == 0:
 				if imgidx != 0:
+					batch_idx += 1
 					yield (np.array(batch_x), np.array(batch_y))
+
 				batch_x = []
 				batch_y = []
+				if mix_real_data:
+					batch_x.extend(x_train[int(batch_idx*effective_batch_size):int((batch_idx+1)*effective_batch_size)])
+					batch_y.extend(y_train[int(batch_idx*effective_batch_size):int((batch_idx+1)*effective_batch_size)])
 
 			img = cv2.imread(imgpath)
 			class_vector_idx = np.where(uniques==" ".join(imgclass.split('_')))[0][0]
@@ -183,17 +192,12 @@ if __name__ == '__main__':
 
 			batch_x.append(img)
 			batch_y.append(class_vector)
-			
-		
-		#yield (np.array(images), np.array(image_answers))
 
 	# Define some variables for easier use
 	input_shape = x_train.shape[1:]
 	classes = (set(c_train)|set(c_test)|set(gan_classes))
 	nb_classes = len(classes)
 	logging.info("Building model")
-
-	#TODO: Probably add some shuffle
 	
 	"""
 	MODEL HERE
@@ -267,9 +271,9 @@ if __name__ == '__main__':
 
 	plot_results = {}	
 
-	model.fit_generator(ganbatch_generator(batch_size=32), samples_per_epoch=50000, nb_epoch=300, validation_data=(x_test, y_test), callbacks=[csv_logger]) # Data augmentation on normal images
+	model.fit_generator(ganbatch_generator(batch_size=32, mix_real_data=True), samples_per_epoch=49984, nb_epoch=300, validation_data=(x_test, y_test), callbacks=[csv_logger]) # Data augmentation on normal images
 
-	#model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=50000, nb_epoch=300, validation_data=(x_test, y_test), callbacks=[csv_logger]) # Data augmentation on normal images
+	#model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=49984, nb_epoch=300, validation_data=(x_test, y_test), callbacks=[csv_logger]) # Data augmentation on normal images
 	#model.fit(x_train, y_train, batch_size=32, nb_epoch=300,verbose=1, validation_data=(x_test, y_test), callbacks=[csv_logger]) # Normal images, no generation
 	score = model.evaluate(x_test, y_test, verbose=0)
 	print('Test score:', score[0])
