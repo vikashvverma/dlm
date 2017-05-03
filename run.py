@@ -4,7 +4,7 @@ from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.models import Sequential
 from keras.callbacks import CSVLogger
 from keras.utils import np_utils
-from utilities.data_handler import get_imdb_data, split_data, get_data
+from utilities.data_handler import get_imdb_data, split_data, get_data, equal_shuffle
 from collections import OrderedDict, defaultdict
 from tqdm import tqdm, trange
 import argparse
@@ -156,38 +156,36 @@ if __name__ == '__main__':
 		return np.where(classname==uniques)[0][0]
 		
 
-	def ganbatch_generator(samples_per_epoch=50000, path='data/lfw/lfw_split_cropped/gangen/'):
+	def ganbatch_generator(batch_size=32, path='data/lfw/lfw_split_cropped/gangen/'):
 		# Generator functions that returns [(images, class)]
 		classes = os.listdir(path)
 		files_by_class = defaultdict(list)
+		image_paths = []
 		logging.info("Initializing generator for {} classes from {}".format(len(classes), path))
 		for selected_class in classes:
 			class_dir = os.path.join(path, selected_class)
 			for imgpath in os.listdir(class_dir):
-				files_by_class[selected_class].append(os.path.join(class_dir,imgpath))
+				#files_by_class[selected_class].append(os.path.join(class_dir,imgpath))
+				image_paths.append((os.path.join(class_dir,imgpath),selected_class))
+		
+		np.random.shuffle(image_paths)
+		for imgidx, (imgpath, imgclass) in enumerate(image_paths):
+			if imgidx % batch_size == 0:
+				if imgidx != 0:
+					yield (np.array(batch_x), np.array(batch_y))
+				batch_x = []
+				batch_y = []
+
+			img = cv2.imread(imgpath)
+			class_vector_idx = np.where(uniques==" ".join(imgclass.split('_')))[0][0]
+			class_vector = np.zeros(len(uniques))
+			class_vector[class_vector_idx] = 1
+
+			batch_x.append(img)
+			batch_y.append(class_vector)
 			
 		
-		nb_samples = samples_per_epoch / len(files_by_class) # number of samples pr class each epoch
-		max_epochs = int(sum([len(files_by_class[k]) for k in files_by_class]) / samples_per_epoch)
-		logging.info("Generator initialized, ready to generate next batch...")
-		for e in range(max_epochs):
-			logging.info("Generator function loading images from epoch {} to memory".format(e))
-			image_paths = []
-			images = []
-			fidx = int(e*nb_samples)
-			tidx = int(fidx+nb_samples)
-			for selected_class in files_by_class:
-				class_vector_idx = np.where(uniques==" ".join(selected_class.split('_')))[0][0]
-				class_vector = np.zeros(len(files_by_class))
-				class_vector[class_vector_idx] = 1
-
-				image_paths.append((files_by_class[selected_class][fidx:tidx],class_vector))
-
-			for img_path_list,img_class in image_paths:
-				for img_path in img_path_list:
-					images.append((cv2.imread(img_path), img_class))
-
-			yield np.array(images)
+		#yield (np.array(images), np.array(image_answers))
 
 	# Define some variables for easier use
 	input_shape = x_train.shape[1:]
@@ -268,20 +266,10 @@ if __name__ == '__main__':
 	datagen.fit(x_train)
 
 	plot_results = {}	
-	nb_epoch = 300
 
-	def train_with_gandata():
-		gan_generator = ganbatch_generator(samples_per_epoch=50000)
-		for e in range(nb_epoch):
-			logging.info("Epoch {}/{}".format(e+1, nb_epoch))
-			genx_train,geny_train = zip(*next(gan_generator))
-			genx_train = np.array(genx_train)
-			geny_train = np.array(geny_train)
+	model.fit_generator(ganbatch_generator(batch_size=32), samples_per_epoch=50000, nb_epoch=300, validation_data=(x_test, y_test), callbacks=[csv_logger]) # Data augmentation on normal images
 
-			import pdb;pdb.set_trace()
-			model.fit(genx_train, geny_train, batch_size=32, nb_epoch=20, verbose=1, validation_data=(x_test, y_test), callbacks=[csv_logger]) # GAN images
-	# train_with_gandata()
-	model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=50000, nb_epoch=300, validation_data=(x_test, y_test), callbacks=[csv_logger]) # Data augmentation on normal images
+	#model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=50000, nb_epoch=300, validation_data=(x_test, y_test), callbacks=[csv_logger]) # Data augmentation on normal images
 	#model.fit(x_train, y_train, batch_size=32, nb_epoch=300,verbose=1, validation_data=(x_test, y_test), callbacks=[csv_logger]) # Normal images, no generation
 	score = model.evaluate(x_test, y_test, verbose=0)
 	print('Test score:', score[0])
