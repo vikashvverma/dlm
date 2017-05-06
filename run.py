@@ -67,10 +67,11 @@ if __name__ == '__main__':
 	#logging.info("Loading generated data...")
 	#x_gen,c_gen = get_data(path='data/lfw/lfw_split_cropped/gangen/',resize=(64,64))
 
-
+	
 	gan_classes = os.listdir('data/lfw/lfw_split_cropped/gangen/')
 	gan_classes = [" ".join(c.split('_')) for c in gan_classes]
 	
+	"""	
 	if not args.include_ng_classes:
 		logging.info("Recreating data lists but only including classes that has generated images.")
 
@@ -89,12 +90,11 @@ if __name__ == '__main__':
 				tmp_ctest.append(c_test[i])
 		x_test = np.array(tmp_xtest)
 		c_test = np.array(tmp_ctest)
-	
+	"""
 	uniques, ids = np.unique(c_train, return_inverse=True)
 
 	train_uniques, train_ids = np.unique(c_train, return_inverse=True)
 	y_train = np_utils.to_categorical(train_ids, len(train_uniques))
-	
 
 	test_uniques, test_ids = np.unique(c_test, return_inverse=True)
 	y_test = np_utils.to_categorical(test_ids, len(test_uniques))
@@ -115,11 +115,18 @@ if __name__ == '__main__':
 	def get_classidx(classname):
 		classname = " ".join(classname.split('_'))
 		return np.where(classname==uniques)[0][0]
-		
 
-	def ganbatch_generator(batch_size=32, mix_real_data=False, path='data/lfw/lfw_split_cropped/gangen/'):
+	def get_classname_from_vector(vec):
+		idx = np.argmax(vec)
+		return get_classname(idx)
+
+	def ganbatch_generator(batch_size=32, mix_real_data=False, classes=[], path='data/lfw/lfw_split_cropped/gangen/'):
 		# Generator functions that returns ([images],[classes])
-		classes = os.listdir(path)
+		if len(classes) == 0:
+			classes = os.listdir(path)
+
+		classes = ["_".join(x.split()) for x in classes]
+
 		files_by_class = defaultdict(list)
 		image_paths = []
 		logging.info("Initializing generator for {} classes from {}".format(len(classes), path))
@@ -129,29 +136,61 @@ if __name__ == '__main__':
 				image_paths.append((os.path.join(class_dir,imgpath),selected_class))
 		
 		np.random.shuffle(image_paths)
-		
-		batch_idx = 0
-		effective_batch_size = batch_size / 2
-		batch_x, batch_y = [],[]
-		for imgidx, (imgpath, imgclass) in enumerate(image_paths):
-			if len(batch_x) % batch_size == 0:
-				if imgidx != 0:
-					batch_idx += 1
-					yield (np.array(batch_x), np.array(batch_y))
+		while True:	
+			batch_idx = 0
+			effective_batch_size = batch_size / 2
+			batch_x, batch_y = [],[]
+			for imgidx, (imgpath, imgclass) in enumerate(image_paths):
+				if len(batch_x) % batch_size == 0:
+					if imgidx != 0:
+						batch_idx += 1
+						yield (np.array(batch_x), np.array(batch_y))
 
-				batch_x = []
-				batch_y = []
-				if mix_real_data:
-					batch_x.extend(x_train[int(batch_idx*effective_batch_size):int((batch_idx+1)*effective_batch_size)])
-					batch_y.extend(y_train[int(batch_idx*effective_batch_size):int((batch_idx+1)*effective_batch_size)])
+					batch_x = []
+					batch_y = []
+					if mix_real_data:
+						batch_x.extend(x_train[int(batch_idx*effective_batch_size):int((batch_idx+1)*effective_batch_size)])
+						batch_y.extend(y_train[int(batch_idx*effective_batch_size):int((batch_idx+1)*effective_batch_size)])
 
-			img = cv2.imread(imgpath)
-			class_vector_idx = np.where(uniques==" ".join(imgclass.split('_')))[0][0]
-			class_vector = np.zeros(len(uniques))
-			class_vector[class_vector_idx] = 1
+				img = cv2.imread(imgpath)
+				class_vector_idx = np.where(uniques==" ".join(imgclass.split('_')))[0][0]
+				class_vector = np.zeros(len(uniques))
+				class_vector[class_vector_idx] = 1
 
-			batch_x.append(img)
-			batch_y.append(class_vector)
+				batch_x.append(img)
+				batch_y.append(class_vector)
+
+	def filter_data(dataset_x, dataset_y, selected_classes=[]):
+		newset = ([],[])
+		if len(selected_classes) == 0:
+			return (dataset_x, dataset_y)
+		else:
+			for x,y in zip(dataset_x, dataset_y):
+				if "_".join(get_classname_from_vector(y).split()) in selected_classes:
+					newset[0].append(x)
+					newset[1].append(y)
+
+		return np.array(newset[0]),np.array(newset[1])
+	"""
+	35 - Gloria_Macapagal_Arroyo
+	35 - Luiz_Inacio_Lula_da_Silva
+	36 - Jacques_Chirac
+	36 - Serena_Williams
+	37 - John_Ashcroft
+	37 - Vladimir_Putin
+	41 - Jean_Chretien
+	46 - Junichiro_Koizumi
+	52 - Hugo_Chavez
+	55 - Ariel_Sharon
+	84 - Gerhard_Schroeder
+	92 - Donald_Rumsfeld
+	108 - Tony_Blair
+	177 - Colin_Powell
+	397 - George_W_Bush
+	"""	
+	class_selection = ["George_W_Bush", "Colin_Powell", "Tony_Blair"]
+	x_train, y_train = filter_data(x_train,y_train, selected_classes=class_selection)
+	x_test, y_test = filter_data(x_test,y_test, selected_classes=class_selection)
 
 	# Define some variables for easier use
 	input_shape = x_train.shape[1:]
@@ -232,10 +271,8 @@ if __name__ == '__main__':
 	datagen.fit(x_train)
 
 	plot_results = {}	
-
-	model.fit(x_train, y_train, batch_size=32, nb_epoch=100,verbose=1, validation_data=(x_test, y_test), callbacks=[csv_logger_normal]) # Normal images, no generation
-	model.fit_generator(ganbatch_generator(batch_size=32), samples_per_epoch=int(len(x_train)*2), nb_epoch=100, validation_data=(x_test, y_test), callbacks=[csv_logger_gan]) # GAN aug
-
+	#model.fit(x_train, y_train, batch_size=32, nb_epoch=1000,verbose=1, validation_data=(x_test, y_test), callbacks=[csv_logger_normal]) # Normal images, no generation
+	model.fit_generator(ganbatch_generator(batch_size=32, classes=class_selection), samples_per_epoch=int(len(x_train)*2), nb_epoch=1000, validation_data=(x_test, y_test), callbacks=[csv_logger_gan]) # GAN aug
 	#model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=49984, nb_epoch=300, validation_data=(x_test, y_test), callbacks=[csv_loggerdataaug]) # Data augmentation on normal images
 	score = model.evaluate(x_test, y_test, verbose=0)
 	print('Test score:', score[0])
