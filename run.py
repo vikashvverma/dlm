@@ -58,46 +58,6 @@ if __name__ == '__main__':
 		cv2.waitKey(0)
 		cv2.destroyAllWindows()
 
-	"""
-	# Load data via mongodb and such
-	pickle_loc = "data/tmp_data.pkl"
-	if os.path.exists(pickle_loc) and not args.reload_data:
-		logging.info("Loading pickle file")
-		with open(pickle_loc, 'rb') as pkl:
-			x,y = pickle.load(pkl)
-	else:
-		if args.reload_data:
-			logging.info("--reload-data (-r) was specified")
-		logging.info("Executing data_handler")
-		#x,y = get_data(path='data/cropped/lfw',resize=(64,64), min_examples=5)
-		x,y = get_imdb_data(collection="56f492c9fba69dbd2439b7975e9e279e_cropped", people_limit=10, port=port, hostname=hostname)
-		logging.info("Saving data as pkl")
-		with open(pickle_loc, 'wb') as pkl:
-			pickle.dump((x,y), pkl)
-	
-
-	logging.info("Data loaded")
-
-	logging.info("Shuffling all the data")
-	logging.info("Getting numpy RNG state")
-	rng_state = np.random.get_state()
-	logging.info("Shuffling X")
-	np.random.shuffle(x)
-	logging.info("Setting numpy RNG state, to same as first shuffle")
-	np.random.set_state(rng_state)
-	logging.info("Shuffling Y")
-	np.random.shuffle(y)
-
-	logging.info("Classes to arrays")
-
-
-	logging.info("Categorizes output data")
-	uniques, ids = np.unique(y, return_inverse=True)
-	cat_y = np_utils.to_categorical(ids, len(uniques))
-	(x_train, x_test), (y_train, y_test) = split_data(x, cat_y)
-	"""
-
-
 
 	# Load LFW data
 	logging.info("Loading training data...")
@@ -255,7 +215,9 @@ if __name__ == '__main__':
 	logging.info("Creating model folder {}".format(model_folder))
 	os.makedirs(model_folder, exist_ok=True)
 
-	csv_logger = CSVLogger('{}/training.log'.format(model_folder))
+	csv_logger_normal = CSVLogger('{}/training_normal.log'.format(model_folder))
+	csv_logger_gan = CSVLogger('{}/training_gan.log'.format(model_folder))
+	csv_logger_dataaug = CSVLogger('{}/training_dataaug.log'.format(model_folder))
 
 
 	datagen = ImageDataGenerator(
@@ -271,10 +233,10 @@ if __name__ == '__main__':
 
 	plot_results = {}	
 
-	model.fit_generator(ganbatch_generator(batch_size=32, mix_real_data=True), samples_per_epoch=49984, nb_epoch=300, validation_data=(x_test, y_test), callbacks=[csv_logger]) # Data augmentation on normal images
+	model.fit(x_train, y_train, batch_size=32, nb_epoch=100,verbose=1, validation_data=(x_test, y_test), callbacks=[csv_logger_normal]) # Normal images, no generation
+	model.fit_generator(ganbatch_generator(batch_size=32), samples_per_epoch=int(len(x_train)*2), nb_epoch=100, validation_data=(x_test, y_test), callbacks=[csv_logger_gan]) # GAN aug
 
-	#model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=49984, nb_epoch=300, validation_data=(x_test, y_test), callbacks=[csv_logger]) # Data augmentation on normal images
-	#model.fit(x_train, y_train, batch_size=32, nb_epoch=300,verbose=1, validation_data=(x_test, y_test), callbacks=[csv_logger]) # Normal images, no generation
+	#model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=49984, nb_epoch=300, validation_data=(x_test, y_test), callbacks=[csv_loggerdataaug]) # Data augmentation on normal images
 	score = model.evaluate(x_test, y_test, verbose=0)
 	print('Test score:', score[0])
 	print('Test accuracy:', score[1])
