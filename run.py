@@ -188,7 +188,7 @@ if __name__ == '__main__':
 	177 - Colin_Powell
 	397 - George_W_Bush
 	"""	
-	class_selection = ["George_W_Bush", "Colin_Powell", "Tony_Blair"]
+	class_selection = ["George_W_Bush", "Colin_Powell", "Tony_Blair", "Donald_Rumsfeld", "Gerhard_Schroeder"]
 	x_train, y_train = filter_data(x_train,y_train, selected_classes=class_selection)
 	x_test, y_test = filter_data(x_test,y_test, selected_classes=class_selection)
 
@@ -271,8 +271,8 @@ if __name__ == '__main__':
 	datagen.fit(x_train)
 
 	plot_results = {}	
-	#model.fit(x_train, y_train, batch_size=32, nb_epoch=1000,verbose=1, validation_data=(x_test, y_test), callbacks=[csv_logger_normal]) # Normal images, no generation
-	model.fit_generator(ganbatch_generator(batch_size=32, classes=class_selection), samples_per_epoch=int(len(x_train)*2), nb_epoch=1000, validation_data=(x_test, y_test), callbacks=[csv_logger_gan]) # GAN aug
+	model.fit(x_train, y_train, batch_size=32, nb_epoch=100,verbose=1, validation_data=(x_test, y_test), callbacks=[csv_logger_normal]) # Normal images, no generation
+	model.fit_generator(ganbatch_generator(batch_size=32, classes=class_selection), samples_per_epoch=int(len(x_train)*2), nb_epoch=100, validation_data=(x_test, y_test), callbacks=[csv_logger_gan]) # GAN aug
 	#model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=49984, nb_epoch=300, validation_data=(x_test, y_test), callbacks=[csv_loggerdataaug]) # Data augmentation on normal images
 	score = model.evaluate(x_test, y_test, verbose=0)
 	print('Test score:', score[0])
