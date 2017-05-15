@@ -82,64 +82,23 @@ for idx,cf in enumerate(class_folders):
 		logging.info("Creating output path: {}...".format(class_outpath))
 		os.makedirs(class_outpath)
 
+
 		logging.info("Loading model {}".format(model_path))
 		generator_model = load_model(os.path.join(cf,model_path))
 		
 		logging.info("Generating {} images with {}...".format(num_images, os.path.join(cf,model_path)))
-		#noise = np.random.uniform(0,1, size=[num_images, 100])
-		#generated_images = generator_model.predict(noise)
+		imageidx = 0
+		batch_size = 50000
 
-		if len(discriminator_model_path) == 1 and args.test_model:
-			discriminator_model_path = discriminator_model_path[0]
-			# Test and skip if bad
-			logging.info("Loading discriminator model {}".format(discriminator_model_path))
-			discriminator_model = load_model(os.path.join(cf,discriminator_model_path))
-			real_images = []
-			cns = " ".join(classname.split('_'))
-			for img,imgclass in zip(x_train,y_train):
-				if imgclass == cns:
-					real_images.append(img)
+		for batch_idx in range(int(num_images/batch_size)):
+			logging.info("Generation batch {}/{}".format(batch_idx+1,int(num_images/batch_size)))
+			noise = np.random.uniform(0,1, size=[batch_size, 100])
+			generated_images = generator_model.predict(noise)
 
-			real_images = np.array(real_images)
-			#fake_generated_images = np.random.uniform(0,1, size=[len(real_images), 64,64,3])
-			noise = np.random.uniform(0,1, size=[len(real_images), 100])
-			fake_generated_images = generator_model.predict(noise)
+			logging.info("Saving images for {} (batch: {})...".format(classname, batch_idx+1))
 
-			X = np.concatenate((real_images, fake_generated_images))
-			n = len(real_images)
-			answers = np.zeros(shape=(2*n,2))
+			generated_images *= 255
 
-			# Set class values (real or generated image)
-			answers[:n,1] = 1
-			answers[n:,0] = 1
-
-			predictions = discriminator_model.predict(X)
-
-			# Measure accuracy of pre-trained discriminator
-			predictions_idx = np.argmax(predictions, axis=1)
-			answers_idx = np.argmax(answers, axis=1)
-			diff = answers_idx-predictions_idx
-			n_total = len(answers)
-			n_correct = (diff==0).sum()
-			accuracy = n_correct*100.0/n_total
-
-			logging.info("Class {} Accuracy: {:.2f}% ({} of {}) correct".format(classname, accuracy, n_correct, n_total))
-			oo = np.ones(len(predictions))
-			zz = np.zeros(len(predictions))
-			if np.array_equal(zz, predictions_idx) or np.array_equal(oo, predictions_idx):
-				# Skip if predictions is all one class
-				logging.warn("Class {} is bugged, images will not be generated".format(classname))
-				with open('failed_generation.txt','a') as lf:
-					logging.info("Class {} Accuracy: {:.2f}% ({} of {}) correct".format(classname, accuracy, n_correct, n_total))
-					lf.write("Class {} Accuracy: {:.2f}% ({} of {}) correct\n".format(classname, accuracy, n_correct, n_total))
-
-				continue
-			else:
-				logging.info("Class {} checks out, images will be generated".format(classname))
-				continue
-
-		
-		logging.info("Saving images for {}...".format(classname))
-		generated_images *= 255
-		for imageidx,img in enumerate(generated_images):
-			cv2.imwrite('{}/{}_{:04d}.jpg'.format(class_outpath, classname, imageidx), img.astype('int'))
+			for img in generated_images:
+				cv2.imwrite('{}/{}_{:04d}.jpg'.format(class_outpath, classname, imageidx), img.astype('int'))
+				imageidx += 1

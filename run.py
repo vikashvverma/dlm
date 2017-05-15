@@ -28,6 +28,7 @@ if __name__ == '__main__':
 	parser.add_argument("-p", "--port", help="MongoDB Port")
 	parser.add_argument("-r", "--reload-data", action="store_true", help="Reload data even if pickle file exists")
 	parser.add_argument("-n", "--include-ng-classes", action="store_true", help="Include classes that have no generated images")
+	parser.add_argument("-g", "--gan-path", help="Path to GAN generated images")
 	args = parser.parse_args()
 	loglevel = logging.ERROR
 	if args.verbosity == 1:
@@ -64,33 +65,15 @@ if __name__ == '__main__':
 	x_train,c_train = get_data(path='data/lfw/lfw_split_cropped/train/',resize=(64,64))
 	logging.info("Loading testing data...")
 	x_test,c_test = get_data(path='data/lfw/lfw_split_cropped/test/',resize=(64,64))
-	#logging.info("Loading generated data...")
-	#x_gen,c_gen = get_data(path='data/lfw/lfw_split_cropped/gangen/',resize=(64,64))
 
-	
-	gan_classes = os.listdir('data/lfw/lfw_split_cropped/gangen/')
+	if args.gan_path:
+		GAN_PATH = args.gan_path
+	else:
+		GAN_PATH = "data/lfw/lfw_split_cropped/gangen/"	
+
+	gan_classes = os.listdir(GAN_PATH)
 	gan_classes = [" ".join(c.split('_')) for c in gan_classes]
 	
-	"""	
-	if not args.include_ng_classes:
-		logging.info("Recreating data lists but only including classes that has generated images.")
-
-		tmp_xtrain,tmp_ctrain = [],[]
-		for i in range(len(x_train)):
-			if c_train[i] in gan_classes:
-				tmp_xtrain.append(x_train[i])
-				tmp_ctrain.append(c_train[i])
-		x_train = np.array(tmp_xtrain)
-		c_train = np.array(tmp_ctrain)
-
-		tmp_xtest,tmp_ctest = [],[]
-		for i in range(len(x_test)):
-			if c_test[i] in gan_classes:
-				tmp_xtest.append(x_test[i])
-				tmp_ctest.append(c_test[i])
-		x_test = np.array(tmp_xtest)
-		c_test = np.array(tmp_ctest)
-	"""
 	uniques, ids = np.unique(c_train, return_inverse=True)
 
 	train_uniques, train_ids = np.unique(c_train, return_inverse=True)
@@ -188,7 +171,7 @@ if __name__ == '__main__':
 	177 - Colin_Powell
 	397 - George_W_Bush
 	"""	
-	class_selection = ["George_W_Bush", "Colin_Powell", "Tony_Blair", "Donald_Rumsfeld", "Gerhard_Schroeder"]
+	class_selection = ["George_W_Bush", "Colin_Powell", "Tony_Blair"] #["_".join(x.split()) for x in gan_classes]
 	x_train, y_train = filter_data(x_train,y_train, selected_classes=class_selection)
 	x_test, y_test = filter_data(x_test,y_test, selected_classes=class_selection)
 
@@ -271,9 +254,9 @@ if __name__ == '__main__':
 	datagen.fit(x_train)
 
 	plot_results = {}	
-	model.fit(x_train, y_train, batch_size=32, nb_epoch=100,verbose=1, validation_data=(x_test, y_test), callbacks=[csv_logger_normal]) # Normal images, no generation
-	model.fit_generator(ganbatch_generator(batch_size=32, classes=class_selection), samples_per_epoch=int(len(x_train)*2), nb_epoch=100, validation_data=(x_test, y_test), callbacks=[csv_logger_gan]) # GAN aug
-	#model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=49984, nb_epoch=300, validation_data=(x_test, y_test), callbacks=[csv_loggerdataaug]) # Data augmentation on normal images
+	#model.fit(x_train, y_train, batch_size=32, nb_epoch=200,verbose=1, validation_data=(x_test, y_test), callbacks=[csv_logger_normal]) # Normal images, no generation
+	#model.fit_generator(datagen.flow(x_train, y_train, batch_size=32), samples_per_epoch=49984, nb_epoch=200, validation_data=(x_test, y_test), callbacks=[csv_logger_dataaug]) # Data augmentation on normal images
+	model.fit_generator(ganbatch_generator(batch_size=32, classes=class_selection, path=GAN_PATH), samples_per_epoch=50000, nb_epoch=200, validation_data=(x_test, y_test), callbacks=[csv_logger_gan]) # GAN aug
 	score = model.evaluate(x_test, y_test, verbose=0)
 	print('Test score:', score[0])
 	print('Test accuracy:', score[1])

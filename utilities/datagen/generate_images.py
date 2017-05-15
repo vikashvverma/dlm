@@ -340,7 +340,7 @@ for class_index, selected_class in enumerate(sortedclasses):
 		generator.summary()
 		sys.stdout = sys.__stdout__
 
-	train_gan(nb_epoch=50000, batch_size=bs, save_frequency=-1)
+	train_gan(nb_epoch=300000, batch_size=bs, save_frequency=1000)
 
 	#opt.lr = K.variable(1e-6)
 	#dopt.lr = K.variable(1e-5)
