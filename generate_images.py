@@ -98,8 +98,8 @@ def set_trainable(model, allow_train):
                 l.trainable = allow_train
 
 #x,y = get_data(path='data/imdb-wiki/handpicked_restructured/')
-x_train,y_train = get_data(path='data/lfw/lfw_split_cropped/train/', resize=(64,64))
-x_test,y_test = get_data(path='data/lfw/lfw_split_cropped/test/', resize=(64,64))
+x_train,y_train = get_data( resize=(64,64))
+x_test,y_test = get_data( resize=(64,64))
 logging.info("Data loaded")
 # Because floats improves learning efficiency according to http://datascience.stackexchange.com/questions/13636/neural-network-data-type-conversion-float-from-int
 x_train /= 255
