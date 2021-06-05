@@ -1,7 +1,7 @@
 # Generate images from celebrities from original looking images
-from dlm.utilities.data_handler import get_imdb_data, split_data, get_data, get_classless_images, equal_shuffle
-from dlm.utilities.multi_gpu import make_parallel
-from dlm.utilities.csv_plot import plot_csv
+from data_handler import get_imdb_data, split_data, get_data, get_classless_images, equal_shuffle
+from multi_gpu import make_parallel
+from csv_plot import plot_csv
 import argparse
 import logging
 import math
@@ -54,7 +54,7 @@ elif args.verbosity == 3:
 
 logging.basicConfig(format='%(levelname)s:%(message)s', level=loglevel)
 
-gan_data_path = "data/gan_data/models"
+gan_data_path = "utilities/gan/data/gan_data/models"
 date_str = time.strftime("%d-%m-%Y_%H-%M-%S")
 save_dir = "{}/{}".format(gan_data_path, date_str)
 os.makedirs(save_dir, exist_ok=True)

@@ -5,3 +5,5 @@ __pycache__/
 *.sublime-project.sublime-workspace
 *.pyc
 failed_generation.txt
+venv
+.idea

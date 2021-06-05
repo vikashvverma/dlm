@@ -4,9 +4,8 @@ from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.models import Sequential
 from keras.callbacks import CSVLogger
 from keras.utils import np_utils
-from utilities.data_handler import get_imdb_data, split_data, get_data, equal_shuffle
-from collections import OrderedDict, defaultdict
-from tqdm import tqdm, trange
+from data_handler import get_data, equal_shuffle
+from collections import defaultdict
 import argparse
 import logging
 import numpy as np
@@ -14,7 +13,6 @@ import cv2
 import pickle
 import os
 import time
-import json
 import sys
 
 np.random.seed(1337)

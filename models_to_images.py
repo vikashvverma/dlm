@@ -1,6 +1,6 @@
-from dlm.utilities.data_handler import get_imdb_data, split_data, get_data, get_classless_images, equal_shuffle
-from dlm.utilities.multi_gpu import make_parallel
-from dlm.utilities.csv_plot import plot_csv
+from data_handler import get_imdb_data, split_data, get_data, get_classless_images, equal_shuffle
+from multi_gpu import make_parallel
+from csv_plot import plot_csv
 import argparse
 import logging
 import math

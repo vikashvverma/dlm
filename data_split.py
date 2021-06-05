@@ -1,4 +1,4 @@
-from dlm.utilities.data_handler import split_data, get_data, equal_shuffle
+from data_handler import split_data, get_data, equal_shuffle
 import argparse
 import shutil
 import cv2
