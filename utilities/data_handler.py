@@ -33,7 +33,7 @@ if __name__ == '__main__':
 		logging.info("Hostname specified, using {}".format(hostname))
 
 	if not args.port:
-		port = 27017	
+		port = 27017
 		logging.info("No port specified, using default of {}".format(port))
 	else:
 		port = int(args.port)
@@ -44,7 +44,7 @@ def get_imdb_data(collection, hostname='localhost', port=27017, people_limit=-1)
 	mc = MongoClient(hostname, port)
 	db = mc['dlm']
 	collection = db[collection]
-	
+
 	x_data = []
 	y_data = []
 
@@ -92,8 +92,11 @@ def get_data(path='data/lfw/lfw/', people_limit=-1, resize=(-1,-1), min_examples
 			if len(files) < min_examples: # Skip classes that contains less images than min_examples
 				break
 			img = cv2.imread('{}/{}'.format(subdir, f))
-			if resize != (-1,-1):
-				img = cv2.resize(img, resize)
+			try:
+				if resize != (-1,-1):
+					img = cv2.resize(img, resize)
+			except:
+				continue
 			x_data.append(img)
 			y_data.append(person_name)
 	return np.array(x_data, dtype=np.float64), np.array(y_data, dtype=np.str)

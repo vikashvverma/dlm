@@ -1,7 +1,7 @@
 # Generate images from celebrities from original looking images
-from dlm.utilities.data_handler import get_imdb_data, split_data, get_data, get_classless_images, equal_shuffle
-from dlm.utilities.multi_gpu import make_parallel
-from dlm.utilities.csv_plot import plot_csv
+from utilities.data_handler import get_imdb_data, split_data, get_data, get_classless_images, equal_shuffle
+# from utilities.multi_gpu import make_parallel
+from utilities.csv_plot import plot_csv
 import argparse
 import logging
 import math
@@ -11,14 +11,14 @@ import pickle
 import os
 import time
 import sys
-from keras.utils import np_utils
+# from keras.utils import np_utils
 from tqdm import tqdm, trange
 import numpy as np
-from keras import backend as K
+# from keras import backend as K
 from keras.utils import np_utils
 import keras.models as models
 from keras.layers import Input,merge
-from keras.layers.core import Reshape,Dense,Dropout,Activation,Flatten,MaxoutDense
+from keras.layers.core import Reshape,Dense,Dropout,Activation,Flatten
 from keras.layers.advanced_activations import LeakyReLU
 from keras.activations import *
 from keras.layers.wrappers import TimeDistributed
@@ -98,8 +98,8 @@ def set_trainable(model, allow_train):
                 l.trainable = allow_train
 
 #x,y = get_data(path='data/imdb-wiki/handpicked_restructured/')
-x_train,y_train = get_data(path='data/lfw/lfw_split_cropped/train/', resize=(64,64))
-x_test,y_test = get_data(path='data/lfw/lfw_split_cropped/test/', resize=(64,64))
+x_train,y_train = get_data( resize=(64,64))
+x_test,y_test = get_data( resize=(64,64))
 logging.info("Data loaded")
 # Because floats improves learning efficiency according to http://datascience.stackexchange.com/questions/13636/neural-network-data-type-conversion-float-from-int
 x_train /= 255
